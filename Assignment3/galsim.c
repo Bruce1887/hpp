@@ -100,7 +100,6 @@ void write_particles_to_file()
 {
     mkdir(OUTPUT_DIR, 0777); // Creates directory if it doesn't exist
 
-
     char *basename = strrchr(filename, '/');
     
     // If a '/' is found, the filename starts after it; otherwise, the whole string is the filename

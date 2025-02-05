@@ -3,6 +3,8 @@
 #include <math.h>
 #include <string.h>
 
+#include "graphics/graphics.h"
+
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -13,6 +15,9 @@ char *filename;
 int nsteps;
 double delta_t;
 int graphics_enabled; // 0 or 1
+
+const float circleRadius = 0.025, circleColor = 0.0F;
+const int windowWidth = 800;
 
 Particle *particles;
 
@@ -153,6 +158,12 @@ int main(int argc, char *argv[])
     //     printf("Particle %d: pos_x = %f, pos_y = %f, mass = %f, vel_x = %f, vel_y = %f, brightness = %f\n", i, particles[i].pos_x, particles[i].pos_y, particles[i].mass, particles[i].vel_x, particles[i].vel_y, particles[i].brightness);
     // }
 
+    if (graphics_enabled)
+    {
+        printf("Graphics enabled\n");
+        InitializeGraphics(argv[0], windowWidth, windowWidth);
+    }
+
     for (int i = 0; i < nsteps; i++)
     {
         // update the particles
@@ -180,6 +191,18 @@ int main(int argc, char *argv[])
             particles[j].pos_x += particles[j].vel_x * delta_t;
             particles[j].pos_y += particles[j].vel_y * delta_t;
         }
+
+        // Simulera partiklarna om graphics är enabled
+        if (graphics_enabled){
+            ClearScreen();
+            for (int j = 0; j < N; j++)
+            {
+                DrawCircle(particles[j].pos_x, particles[j].pos_y, 1, 1, circleRadius, circleColor);
+            }
+            Refresh();
+            usleep(3000);
+        }
+
     }
 
     // write the particles to a file under our_outputs/

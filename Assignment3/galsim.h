@@ -3,8 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// double const G = 6.6740e-11;
-#define G 6.6740e-11 // vi kör define istället för const 
+double const G = 6.6740e-11;
 #define OUTPUT_DIR "our_outputs"
 
 typedef struct {

@@ -18,4 +18,3 @@ typedef struct {
 
 void usage(char *program_name);
 void cleanup();
-Particle* read_gal_file(char* filename);

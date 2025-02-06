@@ -75,8 +75,8 @@ int main(int argc, char *argv[])
                 {
                     double dx = particles[k].pos_x - particles[j].pos_x;
                     double dy = particles[k].pos_y - particles[j].pos_y;
-                    double epsilon = 1e-10;
-                    double r = sqrt(dx * dx + dy * dy) + epsilon;
+                    // double epsilon = 1e-10;
+                    double r = sqrt(dx * dx + dy * dy) + epsilon_0;
                     double F = G * particles[j].mass * particles[k].mass / (r * r);
                     Fx += F * dx / r;
                     Fy += F * dy / r;
@@ -102,10 +102,11 @@ int main(int argc, char *argv[])
         }
     }
 
+    // write the particles to a file under our_outputs/
+
     printf("Simulation complete. Press any key to exit...\n");
     getchar();
 
-    // write the particles to a file under our_outputs/
     write_particles_to_file(particles, N, filename);
 
     // cleanup allocated memory

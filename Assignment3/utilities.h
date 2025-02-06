@@ -78,6 +78,7 @@ Particle *read_gal_file(char *filename, int N)
 
 void write_particles_to_file(Particle *particles, int N, char *filename)
 {
+    
     mkdir(OUTPUT_DIR, 0777); // Creates directory if it doesn't exist
 
     char *basename = strrchr(filename, '/');
@@ -99,11 +100,14 @@ void write_particles_to_file(Particle *particles, int N, char *filename)
         exit(EXIT_FAILURE);
     }
 
-    for (int i = 0; i < N; i++)
-    {
-        fprintf(file, "%f %f %f %f %f %f\n", particles[i].pos_x, particles[i].pos_y, particles[i].mass,
-                particles[i].vel_x, particles[i].vel_y, particles[i].brightness);
-    }
+    fwrite(particles, sizeof(Particle), N, file);
+
+    // for (int i = 0; i < N; i++)
+    // {
+    //     // fprintf(file, "%f %f %f %f %f %f\n", particles[i].pos_x, particles[i].pos_y, particles[i].mass,
+    //     //         particles[i].vel_x, particles[i].vel_y, particles[i].brightness);  
+    // }
+    
     printf("wrote final state to %s\n", output_filepath);
     fclose(file);
 }

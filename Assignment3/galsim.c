@@ -55,50 +55,25 @@ int main(int argc, char *argv[])
     //     printf("Particle %d: pos_x = %f, pos_y = %f, mass = %f, vel_x = %f, vel_y = %f, brightness = %f\n", i, particles[i].pos_x, particles[i].pos_y, particles[i].mass, particles[i].vel_x, particles[i].vel_y, particles[i].brightness);
     // }
 
-    if (graphics_enabled)
-    {
-        printf("Graphics enabled\n");
-        InitializeGraphics(argv[0], windowWidth, windowWidth);
+    if (graphics_enabled) {
+        InitializeGraphics("N-Body Simulation", 1000, 1000);
+        SetCAxes(0, 1); // Assuming the domain is (0,1)x(0,1)
     }
 
-    for (int i = 0; i < nsteps; i++)
-    {
-        // update the particles
-        
-        for (int j = 0; j < N; j++)
-        {
-            double Fx = 0;
-            double Fy = 0;
-            for (int k = 0; k < N; k++)
-            {
-                if (j != k)
-                {
-                    double dx = particles[k].pos_x - particles[j].pos_x;
-                    double dy = particles[k].pos_y - particles[j].pos_y;
-                    // double epsilon = 1e-10;
-                    double r = sqrt(dx * dx + dy * dy) + epsilon_0;
-                    double F = G * particles[j].mass * particles[k].mass / (r * r);
-                    Fx += F * dx / r;
-                    Fy += F * dy / r;
-                }
-            }
-            double ax = Fx / particles[j].mass;
-            double ay = Fy / particles[j].mass;
-            particles[j].vel_x += ax * delta_t;
-            particles[j].vel_y += ay * delta_t;
-            particles[j].pos_x += particles[j].vel_x * delta_t;
-            particles[j].pos_y += particles[j].vel_y * delta_t;
-        }
-        
-        // Simulera partiklarna om graphics är enabled
-        if (graphics_enabled){
+    // Run simulation
+    for (int i = 0; i < nsteps; i++) {
+        double *forces_over_mass = calculate_forces_over_mass(particles, N); // Step 1: Compute accelerations
+        update_particles(particles, forces_over_mass, N, delta_t); // Step 2: Update positions & velocities
+        free(forces_over_mass); // Clean up memory
+
+        // Draw graphics if enabled
+        if (graphics_enabled) {
             ClearScreen();
-            for (int j = 0; j < N; j++)
-            {
+            for (int j = 0; j < N; j++) {
                 DrawCircle(particles[j].pos_x, particles[j].pos_y, 1, 1, circleRadius, circleColor);
             }
             Refresh();
-            usleep(3000);
+            usleep(3000); // Delay for smoother animation
         }
     }
 

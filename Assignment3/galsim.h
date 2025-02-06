@@ -3,8 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// double const G = 6.6740e-11;
-double const epsilon_0 = 10e-3;
+// double const epsilon_0 = 1e-3;
 
 
 #define OUTPUT_DIR "our_outputs"

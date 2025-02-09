@@ -3,19 +3,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// double const epsilon_0 = 1e-3;
-
-
 #define OUTPUT_DIR "our_outputs"
 
-typedef struct {
-    double pos_x;
-    double pos_y;
-    double mass;
-    double vel_x;
-    double vel_y;
-    double brightness;
-} Particle;
+double *P_pos_x = NULL;
+double *P_pos_y = NULL;
+double *P_mass = NULL;
+double *P_vel_x = NULL;
+double *P_vel_y = NULL;
+double *P_brightness = NULL;
 
 
 void usage(char *program_name);

@@ -1,7 +1,7 @@
 CC=gcc
 # -fno-inline
 
-CFLAGS=-Wall -O3 -Winline 
+CFLAGS=-Wall -O3 -Winline -funroll-loops
 INCLUDES=-I/opt/X11/include
 LDFLAGS=-L/opt/X11/lib -lX11 -lm 
 

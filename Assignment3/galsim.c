@@ -1,12 +1,15 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "logic_stuff.h"
-#include "utilities.h"
-
 #include "graphics/graphics.h"
 
 #include "galsim.h"
+
+#include <sys/time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <string.h>
 
 int N;
 char *filename;
@@ -18,6 +21,7 @@ const float circleRadius = 0.0025, circleColor = 0.0F;
 const int windowWidth = 800;
 
 Particle *particles;
+double *force_buf;
 
 // print usage
 void usage(char *program_name)
@@ -29,6 +33,176 @@ void usage(char *program_name)
 void cleanup()
 {
     free(particles);
+    free(force_buf);
+}
+
+// returns an allocated buffer containing the contents of the file as particles
+Particle *read_gal_file(char *filename, int N)
+{
+    FILE *file = fopen(filename, "rb");
+    if (file == NULL)
+    {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    printf("File size: %ld\n", file_size);
+    int num_particles_in_file = file_size / (6 * sizeof(double));
+    printf("Num particles in file: %d\n", num_particles_in_file);
+
+    if (file_size % sizeof(double) != 0)
+    {
+        fprintf(stderr, "File size is not a multiple of sizeof(double)\n");
+        fclose(file);
+        exit(EXIT_FAILURE);
+    }
+
+    if (num_particles_in_file < N)
+    {
+        fprintf(stderr, "File size is smaller than N\n");
+        fclose(file);
+        exit(EXIT_FAILURE);
+    }
+
+    int num_doubles = file_size / sizeof(double);
+    double *buffer = (double *)malloc(file_size);
+    if (buffer == NULL)
+    {
+        perror("Error allocating memory");
+        fclose(file);
+        exit(EXIT_FAILURE);
+    }
+
+    size_t read_elements = fread(buffer, sizeof(double), num_doubles, file);
+    if (read_elements != num_doubles)
+    {
+        perror("Error reading file");
+        free(buffer);
+        fclose(file);
+        exit(EXIT_FAILURE);
+    }
+
+    fclose(file);
+
+    Particle *particles = (Particle *)malloc(N * sizeof(Particle));
+
+    for (int i = 0; i < N; i++)
+    {
+        particles[i].pos_x = buffer[i * 6];
+        particles[i].pos_y = buffer[i * 6 + 1];
+        particles[i].mass = buffer[i * 6 + 2];
+        particles[i].vel_x = buffer[i * 6 + 3];
+        particles[i].vel_y = buffer[i * 6 + 4];
+        particles[i].brightness = buffer[i * 6 + 5];
+    }
+
+    free(buffer);
+    return particles;
+}
+
+void write_particles_to_file(Particle *particles, int N, char *filename)
+{
+    
+    mkdir(OUTPUT_DIR, 0777); // Creates directory if it doesn't exist
+
+    char *basename = strrchr(filename, '/');
+    
+    // If a '/' is found, the filename starts after it; otherwise, the whole string is the filename
+    if (basename != NULL) {
+        basename++;  // Move past the '/' to get the actual filename
+    } else {
+        basename = filename;  // If no '/', the entire string is the filename
+    }
+    
+    char output_filepath[100];
+    sprintf(output_filepath, "%s/output_%s", OUTPUT_DIR, basename);
+    FILE *file = fopen(output_filepath, "wb");
+
+    if (file == NULL)
+    {
+        fprintf(stderr, "Error opening file for writing: %s\n", output_filepath);
+        exit(EXIT_FAILURE);
+    }
+
+    fwrite(particles, sizeof(Particle), N, file);
+
+    // for (int i = 0; i < N; i++)
+    // {
+    //     // fprintf(file, "%f %f %f %f %f %f\n", particles[i].pos_x, particles[i].pos_y, particles[i].mass,
+    //     //         particles[i].vel_x, particles[i].vel_y, particles[i].brightness);  
+    // }
+    
+    printf("wrote final state to %s\n", output_filepath);
+    fclose(file);
+}
+
+static inline void calculate_forces_over_mass(Particle *restrict particles, int N, double *buf)
+{
+    double G_over_N = 100.0 / N; // Given in the assignment
+    double epsilon0 = 1e-3;      // Plummer softening
+
+    for (int i = 0; i < N; i++)
+    {
+        double Fx = 0, Fy = 0;
+        for (int j = 0; j < N; j++)
+        {
+            if (i != j)
+            {
+                double dx = particles[j].pos_x - particles[i].pos_x;
+                double dy = particles[j].pos_y - particles[i].pos_y;
+                double r2 = dx * dx + dy * dy;
+                double r = sqrt(r2) + epsilon0;
+
+                double F = G_over_N * particles[j].mass / (r * r * r);
+                Fx += F * dx;
+                Fy += F * dy;
+            }
+        }
+        buf[2 * i] = Fx;   // ax = F/m, already divided by mass in formula
+        buf[2 * i + 1] = Fy;
+    }
+}
+
+// Update positions and velocities using symplectic Euler
+static inline void update_particles(Particle *restrict particles, double *restrict forces_over_mass, int N, double delta_t)
+{
+    for (int i = 0; i < N; i++)
+    {
+        particles[i].vel_x += forces_over_mass[2 * i] * delta_t;
+        particles[i].vel_y += forces_over_mass[2 * i + 1] * delta_t;
+
+        particles[i].pos_x += particles[i].vel_x * delta_t;
+        particles[i].pos_y += particles[i].vel_y * delta_t;
+    }
+}
+
+static inline void graphics_loop()
+{
+    for (int i = 0; i < nsteps; i++) {
+        calculate_forces_over_mass(particles, N,force_buf); // Step 1: Compute accelerations
+        update_particles(particles, force_buf, N, delta_t); // Step 2: Update positions & velocities
+
+        // Draw graphics if enabled
+        ClearScreen();
+        for (int j = 0; j < N; j++) {
+            DrawCircle(particles[j].pos_x, particles[j].pos_y, 1, 1, circleRadius, circleColor);
+        }
+        Refresh();
+        usleep(3000); // Delay for smoother animation
+        
+    }
+}
+
+static inline void no_graphics_loop()
+{
+    for (int i = 0; i < nsteps; i++) {
+        calculate_forces_over_mass(particles, N,force_buf); // Step 1: Compute accelerations
+        update_particles(particles, force_buf, N, delta_t); // Step 2: Update positions & velocities
+    }
 }
 
 int main(int argc, char *argv[])
@@ -47,41 +221,37 @@ int main(int argc, char *argv[])
     delta_t = atof(argv[4]);
     graphics_enabled = atoi(argv[5]);
 
+    printf("graphics_enabled: %d\n", graphics_enabled);
     // read the file
     particles = read_gal_file(filename,N);
-
-    // print the particles
-    // for (int i = 0; i < N; i++) {
-    //     printf("Particle %d: pos_x = %f, pos_y = %f, mass = %f, vel_x = %f, vel_y = %f, brightness = %f\n", i, particles[i].pos_x, particles[i].pos_y, particles[i].mass, particles[i].vel_x, particles[i].vel_y, particles[i].brightness);
-    // }
 
     if (graphics_enabled) {
         InitializeGraphics("N-Body Simulation", 1000, 1000);
         SetCAxes(0, 1); // Assuming the domain is (0,1)x(0,1)
     }
 
-    // Run simulation
-    for (int i = 0; i < nsteps; i++) {
-        double *forces_over_mass = calculate_forces_over_mass(particles, N); // Step 1: Compute accelerations
-        update_particles(particles, forces_over_mass, N, delta_t); // Step 2: Update positions & velocities
-        free(forces_over_mass); // Clean up memory
+    force_buf = (double *)malloc(2 * N * sizeof(double));
+    
+    // Start timing
+    puts("Start timing...");
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
 
-        // Draw graphics if enabled
-        if (graphics_enabled) {
-            ClearScreen();
-            for (int j = 0; j < N; j++) {
-                DrawCircle(particles[j].pos_x, particles[j].pos_y, 1, 1, circleRadius, circleColor);
-            }
-            Refresh();
-            usleep(3000); // Delay for smoother animation
-        }
-    }
+    // Run simulation
+    if (graphics_enabled) {
+        graphics_loop();
+    } else {
+        no_graphics_loop();
+    }   
+
+    // End timing
+    gettimeofday(&end, NULL);
+    // Compute elapsed time in seconds
+    double elapsed = (end.tv_sec - start.tv_sec) + 
+                     (end.tv_usec - start.tv_usec) / 1e6;
+    printf("Timing finished. Elapsed time: %.6f seconds\n", elapsed);
 
     // write the particles to a file under our_outputs/
-
-    printf("Simulation complete. Press any key to exit...\n");
-    getchar();
-
     write_particles_to_file(particles, N, filename);
 
     // cleanup allocated memory

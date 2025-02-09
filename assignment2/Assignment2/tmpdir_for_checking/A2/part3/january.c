@@ -41,24 +41,34 @@ void add_day(day d)
     }
     else
     {
+        if (head->day.id > d.id)
+        {
+            new_dc->next = head;
+            head = new_dc;
+            return;
+        }
         daychain *current = head;
         while (current->next)
         {
-            if (current->day.id >= d.id)
+            if (current->next->day.id > d.id)
             {
                 break;
             }
+            else
+            {
             current = current->next;
+            }
         }
         if (current->day.id == d.id)
-        {
+        {         
             current->day = d;
             free(new_dc);
-            return;
         }
-        daychain *temp = current->next;
-        current->next = new_dc;
-        new_dc->next = temp;
+        else {
+            daychain *temp = current->next;
+            current->next = new_dc;
+            new_dc->next = temp;
+        }
     }
 }
 

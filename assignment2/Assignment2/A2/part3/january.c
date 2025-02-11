@@ -1,24 +1,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-typedef struct day day;
-struct day
+typedef struct day
 {
     int id;
     double min;
     double max;
-};
+} day;
 
-typedef struct daychain daychain;
-struct daychain
+typedef struct daychain
 {
     day day;
-    daychain *next;
-};
+    struct daychain *next;
+} daychain;
 
-daychain *head = NULL;
-
-void print_my_days()
+void print_my_days(daychain *head)
 {
     puts("day   min        max");
     daychain *current = head;
@@ -29,53 +25,42 @@ void print_my_days()
     }
 }
 
-void add_day(day d)
+daychain *add_day(daychain *head, day d)
 {
     daychain *new_dc = (daychain *)malloc(sizeof(daychain));
     new_dc->day = d;
     new_dc->next = NULL;
 
-    if (head == NULL)
+    if (!head || head->day.id > d.id)
     {
-        head = new_dc;
+        new_dc->next = head;
+        return new_dc;
+    }
+
+    daychain *current = head;
+    while (current->next && current->next->day.id < d.id)
+    {
+        current = current->next;
+    }
+
+    if (current->day.id == d.id)
+    {
+        current->day = d;
+        free(new_dc);
     }
     else
     {
-        if (head->day.id > d.id)
-        {
-            new_dc->next = head;
-            head = new_dc;
-            return;
-        }
-        daychain *current = head;
-        while (current->next)
-        {
-            if (current->next->day.id > d.id)
-            {
-                break;
-            }
-            else
-            {
-            current = current->next;
-            }
-        }
-        if (current->day.id == d.id)
-        {         
-            current->day = d;
-            free(new_dc);
-        }
-        else {
-            daychain *temp = current->next;
-            current->next = new_dc;
-            new_dc->next = temp;
-        }
+        new_dc->next = current->next;
+        current->next = new_dc;
     }
+
+    return head;
 }
 
-void delete_day(int id)
+daychain *delete_day(daychain *head, int id)
 {
-    daychain *current = head;
-    daychain *prev = NULL;
+    daychain *current = head, *prev = NULL;
+
     while (current)
     {
         if (current->day.id == id)
@@ -89,16 +74,29 @@ void delete_day(int id)
                 head = current->next;
             }
             free(current);
-            return;
+            return head;
         }
         prev = current;
         current = current->next;
     }
+    return head;
 }
 
-int main(int argc, char *argv[])
+void free_list(daychain *head)
 {
+    while (head)
+    {
+        daychain *temp = head;
+        head = head->next;
+        free(temp);
+    }
+}
+
+int main()
+{
+    daychain *head = NULL;
     char input[100];
+
     while (1)
     {
         printf("Enter command: ");
@@ -107,54 +105,48 @@ int main(int argc, char *argv[])
         if (input[1] != ' ' && input[1] != '\n' && input[1] != '\r')
             goto BAD_INPUT;
 
-        if (input[1] != ' ' && input[1] != '\n' && input[1] != '\r')
-            printf("BAD input[1] = %d\n", input[1]);
-
         if (input[0] == 'A')
         {
             int id;
             double min, max;
 
-            if (sscanf(input, "A %d %lf %lf", &id, &min, &max) != 3) {
+            if (sscanf(input, "A %d %lf %lf", &id, &min, &max) != 3)
+            {
                 printf("Invalid input format\n");
                 continue;
             }
 
-            if (id < 1 || id > 31) {
+            if (id < 1 || id > 31)
+            {
                 printf("Invalid ID\n");
                 continue;
             }
 
-            day d = {id, min, max}; 
-            add_day(d);
+            day d = {id, min, max};
+            head = add_day(head, d);
         }
         else if (input[0] == 'D')
         {
-            delete_day(atoi(&input[2]));
+            head = delete_day(head, atoi(&input[2]));
         }
         else if (input[0] == 'P')
         {
-            print_my_days();
+            print_my_days(head);
         }
         else if (input[0] == 'Q')
         {
-            goto EXIT;
+            break;
         }
         else
         {
             goto BAD_INPUT;
         }
         continue;
+
     BAD_INPUT:
         puts("Invalid input");
     }
 
-EXIT:
-    for (daychain *current = head; current;)
-    {
-        daychain *temp = current;
-        current = current->next;
-        free(temp);
-    }
+    free_list(head);
     return 0;
 }

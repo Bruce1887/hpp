@@ -3,8 +3,6 @@
 
 #include "graphics/graphics.h"
 
-#include "galsim.h"
-
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -22,6 +20,13 @@ const float circleRadius = 0.0025, circleColor = 0.0F;
 const int windowWidth = 800;
 
 double *force_buf;
+
+double *P_pos_x = NULL;
+double *P_pos_y = NULL;
+double *P_mass = NULL;
+double *P_vel_x = NULL;
+double *P_vel_y = NULL;
+double *P_brightness = NULL;
 
 void allocate_particle_buffers(int N)
 {

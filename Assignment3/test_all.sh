@@ -62,8 +62,8 @@ for i in "${!input_files[@]}"; do
     exit 1
   fi
 
-  # Define output file path
-  output_file="our_outputs/output_$(basename "$input_file")"
+  # Define output file path. (det här är alltid result.gal, dom kräver det i assignment instruktionerna)
+  output_file="result.gal"
 
   # Check if reference file exists
   if [ ! -f "$reference_file" ]; then

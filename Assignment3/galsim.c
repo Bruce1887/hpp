@@ -128,30 +128,15 @@ void read_gal_file(char *filename, int N)
     free(buffer);
 }
 
-void write_particles_to_file(int N, char *filename)
-{
+void write_particles_to_file(int N)
+{    
+    char *output_file = "result.gal";
 
-    mkdir(OUTPUT_DIR, 0777); // Creates directory if it doesn't exist
-
-    char *basename = strrchr(filename, '/');
-
-    // If a '/' is found, the filename starts after it; otherwise, the whole string is the filename
-    if (basename != NULL)
-    {
-        basename++; // Move past the '/' to get the actual filename
-    }
-    else
-    {
-        basename = filename; // If no '/', the entire string is the filename
-    }
-
-    char output_filepath[100];
-    sprintf(output_filepath, "%s/output_%s", OUTPUT_DIR, basename);
-    FILE *file = fopen(output_filepath, "wb");
+    FILE *file = fopen(output_file, "wb");
 
     if (file == NULL)
     {
-        fprintf(stderr, "Error opening file for writing: %s\n", output_filepath);
+        fprintf(stderr, "Error opening file for writing: %s\n", output_file);
         exit(EXIT_FAILURE);
     }
 
@@ -161,7 +146,7 @@ void write_particles_to_file(int N, char *filename)
         fwrite(data, sizeof(double), 6, file);
     }
 
-    printf("wrote final state to %s\n", output_filepath);
+    printf("wrote final state to %s\n", output_file);
     fclose(file);
 }
 
@@ -288,7 +273,7 @@ int main(int argc, char *argv[])
     printf("Timing finished. Elapsed time: %.6f seconds\n", elapsed);
 
     // write the particles to a file under our_outputs/
-    write_particles_to_file(N, filename);
+    write_particles_to_file(N);
 
     // cleanup allocated memory
     cleanup();

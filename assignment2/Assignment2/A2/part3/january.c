@@ -38,22 +38,29 @@ daychain *add_day(daychain *head, day d)
     }
 
     daychain *current = head;
-    while (current->next && current->next->day.id < d.id)
+    while (current->next)
     {
-        current = current->next;
+            if (current->next->day.id > d.id)
+            {
+                break;
+            }
+            else
+            {
+            current = current->next;
+            }
     }
-
+    
     if (current->day.id == d.id)
-    {
-        current->day = d;
-        free(new_dc);
+        {         
+            current->day = d;
+            free(new_dc);
+        }
+        else {
+            daychain *temp = current->next;
+            current->next = new_dc;
+            new_dc->next = temp;
     }
-    else
-    {
-        new_dc->next = current->next;
-        current->next = new_dc;
-    }
-
+    
     return head;
 }
 

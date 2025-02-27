@@ -82,5 +82,3 @@ for i in "${!input_files[@]}"; do
   fi
 
 done
-
-echo "All simulations and comparisons completed successfully!"

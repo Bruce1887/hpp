@@ -134,7 +134,7 @@ void read_gal_file(char *filename, int N)
 }
 
 void write_particles_to_file(int N)
-{    
+{
     char *output_file = "result.gal";
 
     FILE *file = fopen(output_file, "wb");
@@ -160,28 +160,40 @@ static inline void calculate_forces_over_mass(int N, double *buf)
     double G_over_N = 100.0 / N; // Given in the assignment
     double epsilon0 = 1e-3;      // Plummer softening
 
+    // reset for each computation so previous forces are not included
+    memset(buf, 0, 2 * N * sizeof(double));
+
     for (int i = 0; i < N; i++)
     {
-        double Fx = 0, Fy = 0;
-        double x_i = P_pos_x[i];
-        double y_i = P_pos_y[i];
+        double p_pos_x_i = P_pos_x[i];
+        double p_pos_y_i = P_pos_y[i];
 
-        for (int j = 0; j < N; j++)
+        double buf_2i = buf[2 * i];
+        double buf_2i1 = buf[2 * i + 1];
+        double mass_i = P_mass[i];
+
+#pragma GCC ivdep
+        for (int j = i + 1; j < N; j++)
         {
-            if (i != j)
-            {
-                double dx = P_pos_x[j] - x_i;
-                double dy = P_pos_y[j] - y_i;
-                double r2 = dx * dx + dy * dy + epsilon0 * epsilon0;
-                double inv_r3 = 1.0 / (r2 * sqrt(r2));
+            double dx = P_pos_x[j] - p_pos_x_i;
+            double dy = P_pos_y[j] - p_pos_y_i;
+            double r2 = dx * dx + dy * dy;
+            double r = sqrt(r2) + epsilon0;
+            double F = G_over_N / (r * r * r);
 
-                double F = G_over_N * P_mass[i] * inv_r3;
-                Fx += F * dx;
-                Fy += F * dy;
-            }
+            double Fx = F * dx;
+            double Fy = F * dy;
+
+            // Apply force to particle i
+            buf_2i += Fx * P_mass[j]; 
+            buf_2i1 += Fy * P_mass[j];
+
+            // Apply equal & opposite force to j
+            buf[2 * j] -= Fx * mass_i; 
+            buf[2 * j + 1] -= Fy * mass_i;
         }
-        buf[2 * i] = Fx; 
-        buf[2 * i + 1] = Fy;
+        buf[2 * i] = buf_2i;
+        buf[2 * i + 1] = buf_2i1;
     }
 }
 
@@ -224,7 +236,6 @@ static inline void graphics_loop()
         usleep(3000); // Delay for smoother animation
     }
 }
-
 
 int main(int argc, char *argv[])
 {

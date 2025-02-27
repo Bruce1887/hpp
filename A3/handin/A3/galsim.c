@@ -165,10 +165,18 @@ static inline void calculate_forces_over_mass(int N, double *buf)
 
     for (int i = 0; i < N; i++)
     {
+        double p_pos_x_i = P_pos_x[i];
+        double p_pos_y_i = P_pos_y[i];
+
+        double buf_2i = buf[2 * i];
+        double buf_2i1 = buf[2 * i + 1];
+        double mass_i = P_mass[i];
+
+#pragma GCC ivdep
         for (int j = i + 1; j < N; j++)
         {
-            double dx = P_pos_x[j] - P_pos_x[i];
-            double dy = P_pos_y[j] - P_pos_y[i];
+            double dx = P_pos_x[j] - p_pos_x_i;
+            double dy = P_pos_y[j] - p_pos_y_i;
             double r2 = dx * dx + dy * dy;
             double r = sqrt(r2) + epsilon0;
             double F = G_over_N / (r * r * r);
@@ -177,13 +185,15 @@ static inline void calculate_forces_over_mass(int N, double *buf)
             double Fy = F * dy;
 
             // Apply force to particle i
-            buf[2 * i] += Fx * P_mass[j]; 
-            buf[2 * i + 1] += Fy * P_mass[j];
+            buf_2i += Fx * P_mass[j]; 
+            buf_2i1 += Fy * P_mass[j];
 
             // Apply equal & opposite force to j
-            buf[2 * j] -= Fx * P_mass[i]; 
-            buf[2 * j + 1] -= Fy * P_mass[i];
+            buf[2 * j] -= Fx * mass_i; 
+            buf[2 * j + 1] -= Fy * mass_i;
         }
+        buf[2 * i] = buf_2i;
+        buf[2 * i + 1] = buf_2i1;
     }
 }
 

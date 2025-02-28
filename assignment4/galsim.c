@@ -1,3 +1,5 @@
+#define OPENMP // compile with OpenMP. if not defined, will use pthreads
+
 #include <stdio.h>
 #include <math.h>
 
@@ -10,6 +12,8 @@
 #include <string.h>
 
 #include <assert.h>
+#include <omp.h>
+
 int N;
 char *filename;
 int nsteps;
@@ -27,6 +31,8 @@ double *P_mass = NULL;
 double *P_vel_x = NULL;
 double *P_vel_y = NULL;
 double *P_brightness = NULL;
+
+int num_threads = -1;
 
 void allocate_particle_buffers(int N)
 {
@@ -51,7 +57,7 @@ void free_particles()
 // print usage
 void usage(char *program_name)
 {
-    printf("Usage: %s <N> <filename> <nsteps> <delta_t> <graphics>\n", program_name);
+    printf("Usage: %s <N> <filename> <nsteps> <delta_t> <graphics> <num_threads>\n", program_name);
 }
 
 // cleanup allocated memory
@@ -84,7 +90,7 @@ void read_gal_file(char *filename, int N)
 
     printf("File size: %ld\n", file_size);
     int num_particles_in_file = file_size / (6 * sizeof(double));
-    printf("Num particles in file: %d\n", num_particles_in_file);
+    printf("Num particle    s in file: %d\n", num_particles_in_file);
 
     if (file_size % sizeof(double) != 0)
     {
@@ -163,6 +169,9 @@ static inline void calculate_forces_over_mass(int N, double *buf)
     // reset for each computation so previous forces are not included
     memset(buf, 0, 2 * N * sizeof(double));
 
+#ifdef OPENMP
+#pragma omp parallel for
+#endif
     for (int i = 0; i < N; i++)
     {
         double p_pos_x_i = P_pos_x[i];
@@ -172,7 +181,7 @@ static inline void calculate_forces_over_mass(int N, double *buf)
         double buf_2i1 = 0.0;
         double mass_i = P_mass[i];
 
-#pragma GCC ivdep
+#pragma omp parallel for
         for (int j = i + 1; j < N; j++)
         {
             double dx = P_pos_x[j] - p_pos_x_i;
@@ -185,11 +194,11 @@ static inline void calculate_forces_over_mass(int N, double *buf)
             double Fy = F * dy;
 
             // Apply force to particle i
-            buf_2i += Fx * P_mass[j]; 
+            buf_2i += Fx * P_mass[j];
             buf_2i1 += Fy * P_mass[j];
 
             // Apply equal & opposite force to j
-            buf[2 * j] -= Fx * mass_i; 
+            buf[2 * j] -= Fx * mass_i;
             buf[2 * j + 1] -= Fy * mass_i;
         }
         buf[2 * i] += buf_2i;
@@ -240,7 +249,7 @@ static inline void graphics_loop()
 int main(int argc, char *argv[])
 {
     // check for correct number of arguments
-    if (argc != 6)
+    if (argc != 7)
     {
         usage(argv[0]);
         return 1;
@@ -252,6 +261,7 @@ int main(int argc, char *argv[])
     nsteps = atoi(argv[3]);
     delta_t = atof(argv[4]);
     graphics_enabled = atoi(argv[5]);
+    num_threads = atoi(argv[6]);
 
     allocate_particle_buffers(N);
     printf("graphics_enabled: %d\n", graphics_enabled);
@@ -266,6 +276,12 @@ int main(int argc, char *argv[])
 
     force_buf = (double *)malloc(2 * N * sizeof(double));
 
+#ifdef OPENMP
+    puts("Using OpenMP");
+    omp_set_num_threads(num_threads);
+#else
+    puts("Using Pthreads (not implemented yet, just run sequential)");
+#endif
     // Start timing
     puts("Start timing...");
     struct timeval start, end;

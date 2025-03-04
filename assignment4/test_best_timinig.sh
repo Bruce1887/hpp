@@ -2,10 +2,16 @@
 
 # Start timer
 start_time=$(date +%s.%N)
+num_threads="$1"
+if [ -z "$1" ]; then
+    echo "Error: you must specify number of threads!"
+    echo "Usage: $0 <num_threads>"
+    exit 1  
+fi
 
 # Run the galsim command
 echo "Running galsim with 3000 particles for 100 steps and delta_t=0.00001..."
-output_time=$(./galsim 3000 input_data/ellipse_N_03000.gal 100 0.00001 0)
+output_time=$(./galsim 3000 input_data/ellipse_N_03000.gal 100 0.00001 0 $num_threads)
 
 # Check if galsim ran successfully
 if [ $? -ne 0 ]; then

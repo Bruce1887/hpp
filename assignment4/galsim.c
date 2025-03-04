@@ -1,5 +1,3 @@
-#define OPENMP // compile with OpenMP. if not defined, will use pthreads
-
 #include <stdio.h>
 #include <math.h>
 
@@ -88,9 +86,9 @@ void read_gal_file(char *filename, int N)
     long file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
 
-    printf("File size: %ld\n", file_size);
+    // printf("File size: %ld\n", file_size);
     int num_particles_in_file = file_size / (6 * sizeof(double));
-    printf("Num particle    s in file: %d\n", num_particles_in_file);
+    // printf("Num particles in file: %d\n", num_particles_in_file);
 
     if (file_size % sizeof(double) != 0)
     {
@@ -168,12 +166,12 @@ static inline void calculate_forces_over_mass(int N, double *buf)
 
     // reset for each computation so previous forces are not included
     memset(buf, 0, 2 * N * sizeof(double));
-
 #ifdef OPENMP
 #pragma omp parallel for
 #endif
     for (int i = 0; i < N; i++)
     {
+        // printf("Iteration %d executed by thread %d\n", i, omp_get_thread_num());
         double p_pos_x_i = P_pos_x[i];
         double p_pos_y_i = P_pos_y[i];
 
@@ -181,7 +179,6 @@ static inline void calculate_forces_over_mass(int N, double *buf)
         double buf_2i1 = 0.0;
         double mass_i = P_mass[i];
 
-#pragma omp parallel for
         for (int j = i + 1; j < N; j++)
         {
             double dx = P_pos_x[j] - p_pos_x_i;
@@ -209,6 +206,9 @@ static inline void calculate_forces_over_mass(int N, double *buf)
 // Update positions and velocities using symplectic Euler
 static inline void update_particles(double *restrict forces_over_mass, int N, double delta_t)
 {
+#ifdef OPENMP
+#pragma omp parallel for
+#endif
     for (int i = 0; i < N; i++)
     {
         P_vel_x[i] += forces_over_mass[2 * i] * delta_t;
@@ -223,8 +223,12 @@ static inline void no_graphics_loop()
 {
     for (int i = 0; i < nsteps; i++)
     {
+#ifndef PTHREADS
         calculate_forces_over_mass(N, force_buf); // Step 1: Compute accelerations
         update_particles(force_buf, N, delta_t);  // Step 2: Update positions & velocities
+#else
+// gör nåt annat
+#endif
     }
 }
 
@@ -232,10 +236,14 @@ static inline void graphics_loop()
 {
     for (int i = 0; i < nsteps; i++)
     {
+#ifndef PTHREADS
         calculate_forces_over_mass(N, force_buf); // Step 1: Compute accelerations
         update_particles(force_buf, N, delta_t);  // Step 2: Update positions & velocities
+#else
+// gör nåt annat
+#endif
 
-        // Draw graphics if enabled
+        // Draw graphics
         ClearScreen();
         for (int j = 0; j < N; j++)
         {
@@ -254,7 +262,8 @@ int main(int argc, char *argv[])
         usage(argv[0]);
         return 1;
     }
-
+    
+    
     // set global variables
     N = atoi(argv[1]);
     filename = argv[2];
@@ -262,9 +271,19 @@ int main(int argc, char *argv[])
     delta_t = atof(argv[4]);
     graphics_enabled = atoi(argv[5]);
     num_threads = atoi(argv[6]);
+    
+#ifdef OPENMP
+// #pragma omp parallel num_threads(num_threads)
+    puts("### Using OpenMP ###");
+    omp_set_num_threads(num_threads);
+    printf("num_threads: %d\n", num_threads);
+#endif
+    
+#ifdef PTHREADS
+    puts("### Using Pthreads ###");
+#endif
 
     allocate_particle_buffers(N);
-    printf("graphics_enabled: %d\n", graphics_enabled);
     // read the file
     read_gal_file(filename, N);
 
@@ -276,12 +295,6 @@ int main(int argc, char *argv[])
 
     force_buf = (double *)malloc(2 * N * sizeof(double));
 
-#ifdef OPENMP
-    puts("Using OpenMP");
-    omp_set_num_threads(num_threads);
-#else
-    puts("Using Pthreads (not implemented yet, just run sequential)");
-#endif
     // Start timing
     puts("Start timing...");
     struct timeval start, end;

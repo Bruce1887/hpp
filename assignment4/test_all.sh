@@ -25,6 +25,14 @@ reference_files=(
 nsteps_values=(200 200 200 200 200 100)
 delta_t=0.00001
 
+num_threads="$1"
+
+if [ -z "$1" ]; then
+    echo "Error: you must specify number of threads!"
+    echo "Usage: $0 <num_threads>"
+    exit 1  
+fi
+
 # Loop over both input and reference files
 for i in "${!input_files[@]}"; do
   input_file="${input_files[$i]}"
@@ -46,12 +54,13 @@ for i in "${!input_files[@]}"; do
   echo "- Particles: $N"
   echo "- Steps: $nsteps"
   echo "- Time step: $delta_t"
+  echo "- num_threads: $num_threads"
   echo "----------------------------------------------"
 
   start_time=$(date +%s.%N)
   # Run the simulation
   echo "Running galsim for $N particles with $nsteps steps and delta_t=$delta_t..."
-  ./galsim $N "$input_file" $nsteps $delta_t 0 > /dev/null 2>&1
+  ./galsim $N "$input_file" $nsteps $delta_t 0 $num_threads> /dev/null 2>&1
   end_time=$(date +%s.%N)
   elapsed_time=$(echo "$end_time - $start_time" | bc)
   echo "Elapsed time: $elapsed_time seconds"

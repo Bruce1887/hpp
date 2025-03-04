@@ -159,49 +159,71 @@ void write_particles_to_file(int N)
     fclose(file);
 }
 
-static inline void calculate_forces_over_mass(int N, double *buf)
+static inline void calculate_forces_over_mass_OPENMP(int N, double *buf)
 {
     double G_over_N = 100.0 / N; // Given in the assignment
     double epsilon0 = 1e-3;      // Plummer softening
 
-    // reset for each computation so previous forces are not included
-    memset(buf, 0, 2 * N * sizeof(double));
+    memset(buf, 0, 2 * N * sizeof(double));  // Reset forces
+
 #ifdef OPENMP
-#pragma omp parallel for
+#pragma omp parallel
 #endif
-    for (int i = 0; i < N; i++)
     {
-        // printf("Iteration %d executed by thread %d\n", i, omp_get_thread_num());
-        double p_pos_x_i = P_pos_x[i];
-        double p_pos_y_i = P_pos_y[i];
+        // thread local buffer
+        double *buf_private = (double *)calloc(2 * N, sizeof(double));
 
-        double buf_2i = 0.0;
-        double buf_2i1 = 0.0;
-        double mass_i = P_mass[i];
-
-        for (int j = i + 1; j < N; j++)
+#ifdef OPENMP
+#pragma omp for
+#endif
+        for (int i = 0; i < N; i++)
         {
-            double dx = P_pos_x[j] - p_pos_x_i;
-            double dy = P_pos_y[j] - p_pos_y_i;
-            double r2 = dx * dx + dy * dy;
-            double r = sqrt(r2) + epsilon0;
-            double F = G_over_N / (r * r * r);
+            double p_pos_x_i = P_pos_x[i];
+            double p_pos_y_i = P_pos_y[i];
 
-            double Fx = F * dx;
-            double Fy = F * dy;
+            double buf_2i = 0.0;
+            double buf_2i1 = 0.0;
+            double mass_i = P_mass[i];
 
-            // Apply force to particle i
-            buf_2i += Fx * P_mass[j];
-            buf_2i1 += Fy * P_mass[j];
+            for (int j = i + 1; j < N; j++)
+            {
+                double dx = P_pos_x[j] - p_pos_x_i;
+                double dy = P_pos_y[j] - p_pos_y_i;
+                double r2 = dx * dx + dy * dy;
+                double r = sqrt(r2) + epsilon0;
+                double F = G_over_N / (r * r * r);
 
-            // Apply equal & opposite force to j
-            buf[2 * j] -= Fx * mass_i;
-            buf[2 * j + 1] -= Fy * mass_i;
+                double Fx = F * dx;
+                double Fy = F * dy;
+
+                // Accumulate force for i
+                buf_2i += Fx * P_mass[j];
+                buf_2i1 += Fy * P_mass[j];
+
+                // Accumulate opposite force for j (no atomic needed!)
+                buf_private[2 * j] -= Fx * mass_i;
+                buf_private[2 * j + 1] -= Fy * mass_i;
+            }
+
+            buf_private[2 * i] += buf_2i;
+            buf_private[2 * i + 1] += buf_2i1;
         }
-        buf[2 * i] += buf_2i;
-        buf[2 * i + 1] += buf_2i1;
+
+        // Merge thread-local results into global buffer
+#ifdef OPENMP
+#pragma omp critical
+#endif
+        {
+            for (int k = 0; k < 2 * N; k++)
+            {
+                buf[k] += buf_private[k];
+            }
+        }
+
+        free(buf_private);
     }
 }
+
 
 // Update positions and velocities using symplectic Euler
 static inline void update_particles(double *restrict forces_over_mass, int N, double delta_t)
@@ -224,7 +246,7 @@ static inline void no_graphics_loop()
     for (int i = 0; i < nsteps; i++)
     {
 #ifndef PTHREADS
-        calculate_forces_over_mass(N, force_buf); // Step 1: Compute accelerations
+        calculate_forces_over_mass_OPENMP(N, force_buf); // Step 1: Compute accelerations
         update_particles(force_buf, N, delta_t);  // Step 2: Update positions & velocities
 #else
 // gör nåt annat
@@ -237,7 +259,7 @@ static inline void graphics_loop()
     for (int i = 0; i < nsteps; i++)
     {
 #ifndef PTHREADS
-        calculate_forces_over_mass(N, force_buf); // Step 1: Compute accelerations
+        calculate_forces_over_massMP(N, force_buf); // Step 1: Compute accelerations
         update_particles(force_buf, N, delta_t);  // Step 2: Update positions & velocities
 #else
 // gör nåt annat
@@ -262,8 +284,7 @@ int main(int argc, char *argv[])
         usage(argv[0]);
         return 1;
     }
-    
-    
+
     // set global variables
     N = atoi(argv[1]);
     filename = argv[2];
@@ -271,14 +292,14 @@ int main(int argc, char *argv[])
     delta_t = atof(argv[4]);
     graphics_enabled = atoi(argv[5]);
     num_threads = atoi(argv[6]);
-    
+
 #ifdef OPENMP
-// #pragma omp parallel num_threads(num_threads)
+    // #pragma omp parallel num_threads(num_threads)
     puts("### Using OpenMP ###");
     omp_set_num_threads(num_threads);
     printf("num_threads: %d\n", num_threads);
 #endif
-    
+
 #ifdef PTHREADS
     puts("### Using Pthreads ###");
 #endif

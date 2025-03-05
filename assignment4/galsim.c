@@ -12,6 +12,58 @@
 #include <assert.h>
 #include <omp.h>
 
+#include <pthread.h>
+#include <stdatomic.h>
+
+int num_threads = -1;
+#ifdef PTHREADS
+atomic_int pthreads_idx = 0;
+volatile int global_tick_counter = 0;
+
+pthread_barrier_t barrier; // den här funkar, men får röd markering i VS Code (iaf för mig /edvin)
+
+typedef struct thread_data_struct
+{
+    int id;
+    double *local_force_buf;
+    int local_tick;
+} thread_data;
+
+pthread_t *threads;
+thread_data **all_data;
+void setup_threads(int num_threads, int num_particles)
+{
+    if (num_threads < 1)
+    {
+        fprintf(stderr, "Invalid number of threads\n");
+        exit(1);
+    }
+    threads = (pthread_t *)malloc(num_threads * sizeof(pthread_t));
+    all_data = calloc(num_threads, sizeof(thread_data *));
+
+    for (int i = 0; i < num_threads; i++)
+    {
+        thread_data *data = (thread_data *)malloc(sizeof(thread_data));
+        data->id = i;
+        data->local_force_buf = (double *)calloc(2 * num_particles, sizeof(double));
+        data->local_tick = 0;
+        all_data[i] = data;
+    }
+    // setup barrier
+    pthread_barrier_init(&barrier, NULL, num_threads);
+}
+void cleanup_Pthreads(int num_threads)
+{
+    for (int i = 0; i < num_threads; i++)
+    {
+        free(all_data[i]->local_force_buf);
+        free(all_data[i]);
+    }
+    free(all_data);
+    free(threads);
+}
+#endif
+
 int N;
 char *filename;
 int nsteps;
@@ -21,7 +73,7 @@ int graphics_enabled; // 0 or 1
 const float circleRadius = 0.0025, circleColor = 0.0F;
 const int windowWidth = 800;
 
-double *force_buf;
+double *global_force_buf;
 
 double *P_pos_x = NULL;
 double *P_pos_y = NULL;
@@ -29,8 +81,6 @@ double *P_mass = NULL;
 double *P_vel_x = NULL;
 double *P_vel_y = NULL;
 double *P_brightness = NULL;
-
-int num_threads = -1;
 
 void allocate_particle_buffers(int N)
 {
@@ -55,14 +105,21 @@ void free_particles()
 // print usage
 void usage(char *program_name)
 {
+#ifdef SEQ
+    printf("Usage: %s <N> <filename> <nsteps> <delta_t> <graphics>\n", program_name);
+#else
     printf("Usage: %s <N> <filename> <nsteps> <delta_t> <graphics> <num_threads>\n", program_name);
+#endif
 }
 
 // cleanup allocated memory
 void cleanup()
 {
     free_particles();
-    free(force_buf);
+    free(global_force_buf);
+#ifdef PTHREADS
+    cleanup_Pthreads(num_threads);
+#endif
 }
 
 // returns an allocated buffer containing the contents of the file as particles
@@ -160,11 +217,12 @@ void write_particles_to_file(int N)
 }
 
 static inline void calculate_forces_over_mass_OPENMP(int N, double *buf)
+
 {
     double G_over_N = 100.0 / N; // Given in the assignment
     double epsilon0 = 1e-3;      // Plummer softening
 
-    memset(buf, 0, 2 * N * sizeof(double));  // Reset forces
+    memset(buf, 0, 2 * N * sizeof(double)); // Reset forces between ticks
 
 #ifdef OPENMP
 #pragma omp parallel
@@ -223,10 +281,7 @@ static inline void calculate_forces_over_mass_OPENMP(int N, double *buf)
         free(buf_private);
     }
 }
-
-
-// Update positions and velocities using symplectic Euler
-static inline void update_particles(double *restrict forces_over_mass, int N, double delta_t)
+static inline void update_particles_OPENMP(double *restrict forces_over_mass, int N, double delta_t)
 {
 #ifdef OPENMP
 #pragma omp parallel for
@@ -241,17 +296,134 @@ static inline void update_particles(double *restrict forces_over_mass, int N, do
     }
 }
 
+#ifdef PTHREADS
+static inline void calculate_force_over_mass_for_one(thread_data *t_data, int i, double epsilon0, double G_over_N);
+void *pthread_func(void *arg)
+{
+    // ### calculate forces over mass ###
+    thread_data *t_data = (thread_data *)arg;
+
+    double G_over_N = 100.0 / N; // Given in the assignment
+    double epsilon0 = 1e-3;      // Plummer softening
+
+    if (t_data->id == 0)
+        global_tick_counter++;
+
+    // this while loop is for all the ticks. We leave this loop when we have processed all ticks
+    while (1)
+    {
+        if (t_data->local_tick == nsteps)
+        {
+            break;
+        }
+        assert(t_data->local_tick < nsteps);
+        t_data->local_tick++;
+
+        // Reset forces between ticks
+        memset(t_data->local_force_buf, 0, 2 * N * sizeof(double)); // all threads reset their local buffers
+        if (t_data->id == 0)
+            memset(global_force_buf, 0, 2 * N * sizeof(double)); // thread 0 resets the global buffer
+
+        // do work for this tick. we leave this while loop when we have processed all particles
+        while (1)
+        {
+            int particle_idx = atomic_fetch_add(&pthreads_idx, 1);
+            if (particle_idx >= N)
+                break;
+
+            calculate_force_over_mass_for_one(t_data, particle_idx, epsilon0, G_over_N);
+        }
+
+        pthread_barrier_wait(&barrier);
+
+        // KRITISK SEKTION, vi säger att tråd 0 kör sista biten här bara
+        if (t_data->id == 0)
+        {
+            memset(global_force_buf, 0, 2 * N * sizeof(double)); // Reset global forces
+            // combine the local buffers from all the threads into common buffer
+            for (int j = 0; j < 2 * N; j++)
+            {
+                for (int x = 0; x < num_threads; x++)
+                {
+                    global_force_buf[j] += all_data[x]->local_force_buf[j];
+                }
+            }
+            // ### Update particles ###
+            for (int idx = 0; idx < N; idx++)
+            {
+                P_vel_x[idx] += global_force_buf[2 * idx] * delta_t;
+                P_vel_y[idx] += global_force_buf[2 * idx + 1] * delta_t;
+
+                P_pos_x[idx] += P_vel_x[idx] * delta_t;
+                P_pos_y[idx] += P_vel_y[idx] * delta_t;
+            }
+            // reset pthreads_idx and increment global tick counter
+            pthreads_idx = 0;
+            global_tick_counter++;
+        }
+        pthread_barrier_wait(&barrier);
+    }
+    return NULL;
+}
+
+static inline void calculate_force_over_mass_for_one(thread_data *t_data, int particle_idx, double epsilon0, double G_over_N)
+{
+    double p_pos_x_i = P_pos_x[particle_idx];
+    double p_pos_y_i = P_pos_y[particle_idx];
+
+    double buf_2i = 0.0;
+    double buf_2i1 = 0.0;
+    double mass_i = P_mass[particle_idx];
+
+    int idx_helper = particle_idx + 1; // check for all after particle_idx
+    while (idx_helper < N)
+    {
+        double dx = P_pos_x[idx_helper] - p_pos_x_i;
+        double dy = P_pos_y[idx_helper] - p_pos_y_i;
+        double r2 = dx * dx + dy * dy;
+        double r = sqrt(r2) + epsilon0;
+        double F = G_over_N / (r * r * r);
+
+        double Fx = F * dx;
+        double Fy = F * dy;
+
+        // Apply force to particle
+        buf_2i += Fx * P_mass[idx_helper];
+        buf_2i1 += Fy * P_mass[idx_helper];
+
+        // Apply equal & opposite force to other particle
+        t_data->local_force_buf[2 * idx_helper] -= Fx * mass_i;
+        t_data->local_force_buf[2 * idx_helper + 1] -= Fy * mass_i;
+        idx_helper++;
+    }
+
+    t_data->local_force_buf[2 * particle_idx] += buf_2i;
+    t_data->local_force_buf[2 * particle_idx + 1] += buf_2i1;
+}
+#endif
+
 static inline void no_graphics_loop()
 {
+
+#ifdef PTHREADS
+    for (int i = 0; i < num_threads; i++)
+    {
+        pthread_create(&threads[i], NULL, pthread_func, all_data[i]);
+    }
+
+    for (int i = 0; i < num_threads; i++)
+    {
+        pthread_join(threads[i], NULL);
+    }
+
+    return;
+#else
     for (int i = 0; i < nsteps; i++)
     {
-#ifndef PTHREADS
-        calculate_forces_over_mass_OPENMP(N, force_buf); // Step 1: Compute accelerations
-        update_particles(force_buf, N, delta_t);  // Step 2: Update positions & velocities
-#else
-// gör nåt annat
-#endif
+        calculate_forces_over_mass_OPENMP(N, global_force_buf);
+        update_particles_OPENMP(global_force_buf, N, delta_t);
     }
+#endif
 }
 
 static inline void graphics_loop()
@@ -259,10 +431,10 @@ static inline void graphics_loop()
     for (int i = 0; i < nsteps; i++)
     {
 #ifndef PTHREADS
-        calculate_forces_over_massMP(N, force_buf); // Step 1: Compute accelerations
-        update_particles(force_buf, N, delta_t);  // Step 2: Update positions & velocities
+        calculate_forces_over_mass_OPENMP(N, global_force_buf);
+        update_particles_OPENMP(global_force_buf, N, delta_t);
 #else
-// gör nåt annat
+        assert(1 == 0);
 #endif
 
         // Draw graphics
@@ -278,8 +450,12 @@ static inline void graphics_loop()
 
 int main(int argc, char *argv[])
 {
-    // check for correct number of arguments
+// check for correct number of arguments
+#ifdef SEQ
+    if (argc != 6)
+#else
     if (argc != 7)
+#endif
     {
         usage(argv[0]);
         return 1;
@@ -291,7 +467,11 @@ int main(int argc, char *argv[])
     nsteps = atoi(argv[3]);
     delta_t = atof(argv[4]);
     graphics_enabled = atoi(argv[5]);
+#ifdef SEQ
+    num_threads = 1;
+#else
     num_threads = atoi(argv[6]);
+#endif
 
 #ifdef OPENMP
     // #pragma omp parallel num_threads(num_threads)
@@ -302,6 +482,12 @@ int main(int argc, char *argv[])
 
 #ifdef PTHREADS
     puts("### Using Pthreads ###");
+    printf("num_threads: %d\n", num_threads);
+    setup_threads(num_threads, N);
+#endif
+
+#if !defined(OPENMP) && !defined(PTHREADS)
+    puts("### Using Sequential implementation ###");
 #endif
 
     allocate_particle_buffers(N);
@@ -314,7 +500,7 @@ int main(int argc, char *argv[])
         SetCAxes(0, 1); // Assuming the domain is (0,1)x(0,1)
     }
 
-    force_buf = (double *)malloc(2 * N * sizeof(double));
+    global_force_buf = (double *)malloc(2 * N * sizeof(double));
 
     // Start timing
     puts("Start timing...");

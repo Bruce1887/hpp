@@ -11,7 +11,7 @@ fi
 
 # Run the galsim command
 echo "Running galsim with 3000 particles for 100 steps and delta_t=0.00001..."
-output_time=$(./galsim 3000 input_data/ellipse_N_03000.gal 100 0.00001 0 $num_threads)
+output_time=$(./galsim 5000 input_data/ellipse_N_05000.gal 100 0.00001 0 $num_threads)
 
 # Check if galsim ran successfully
 if [ $? -ne 0 ]; then

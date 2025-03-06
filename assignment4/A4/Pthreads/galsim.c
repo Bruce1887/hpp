@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "graphics/graphics.h"
+#include "../graphics.h"
 
 #include <sys/time.h>
 #include <sys/stat.h>

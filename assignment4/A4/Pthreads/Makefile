@@ -6,8 +6,8 @@ CFLAGS= -Wall -O3 -ffast-math -march=native -ftree-vectorize -Winline -funroll-l
 INCLUDES=-I/opt/X11/include 
 LDFLAGS=-L/opt/X11/lib -lX11 -lm 
 
-PTHREADS: ../graphics.o Makefile galsim.c
+galsim: ../graphics.o Makefile galsim.c
 	$(CC) $(CFLAGS) -o galsim galsim.c ../graphics.o $(LDFLAGS) -lpthread -DPTHREADS
 
 clean:
-	rm galsim result.gal ../graphics.o
+	rm galsim ../graphics.o

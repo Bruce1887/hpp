@@ -1,11 +1,11 @@
 CC := gcc
-CFLAGS := -Wall -O3 -ffast-math -march=native -ftree-vectorize -Winline -funroll-loops
+CFLAGS := -Wall -O3 -ffast-math -march=native -ftree-vectorize -Winline -funroll-loops -fopenmp	
 INCLUDES := -I/opt/X11/include
 LDFLAGS := -L/opt/X11/lib -lX11 -lm
 
 SRC := solver.c printer.c
 OBJ := $(SRC:.c=.o)
-DEPS := solver.h parser.h validator.h
+DEPS := solver.h parser.h validator.h Makefile
 
 all: solver
 

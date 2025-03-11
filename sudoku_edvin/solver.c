@@ -10,38 +10,60 @@
 #include "solver.h"
 #include "validator.h"
 
-void usage(char *program_name) {
-    printf("Usage: %s <filename> \n", program_name);
-    exit(EXIT_FAILURE);
-}
+bool solve_my_board(Board *b)
+{
+    if (b->num_empty == 0)
+        return true;
 
-void print_board(Board *b) {
-    for (int i = 0; i < b->side; i++) {
-        for (int j = 0; j < b->side; j++) {
-            printf("%d ", b->cells[i * b->side + j]);
+    int8_t idx = b->empty_chain->idx;
+    // try all possible values in that cell
+    for (int val = 1; val <= b->side; val++)
+    {
+        b->cells[idx] = val;
+        
+        int x;
+        int y;
+        get_coords(b, idx, &x, &y);
+
+        if (validate_update(b, x, y))
+        { 
+            EmptyChain *tmp = b->empty_chain;
+            b->empty_chain = b->empty_chain->next;
+            b->num_empty--;
+
+            if (solve_my_board(b))
+                return true;
+
+            b->empty_chain = tmp;
+            b->num_empty++;
         }
-        printf("\n");
     }
+
+    b->cells[idx] = 0;
+    return false;
 }
 
-void solve_my_board(Board *b) {
-
-}
-
-int main(int argc, char *argv[]) {
-    if (argc != 2) {
+int main(int argc, char *argv[])
+{
+    if (argc != 2)
+    {
         usage(argv[0]);
     }
+    
+    #ifdef _OPENMP
+        printf("OpenMP version: %d\n", _OPENMP);
+    #endif
 
-    Board* b = read_dat_file(argv[1], 0);
+    Board *b = read_dat_file(argv[1], 0);
     printf("base: %d\n", b->base);
     printf("side: %d\n", b->side);
+    print_board(b);
+
+    bool solved = solve_my_board(b);
+    print_board(b);
+    printf("Board is %s\n", solved ? "solved" : "not solved");
 
     write_board_to_file(b);
-    // print_board(b);
-
-    bool ok = validate_board(b);
-    printf("Board is %s\n", ok ? "valid" : "invalid");
 
     delete_board(b);
     exit(EXIT_SUCCESS);

@@ -17,10 +17,9 @@ bool duplicate_in_row(Board *b, int r)
             Cell other = get_cell(b, c2, r);
             if (cell == other)
             {
-#ifdef DEBUG
-                printf("Duplicate in row at %d\n", r);
-                printf("apparently %d is equal to %d\n", cell, other);
-#endif
+                // DEBUG_PRINT(printf("Duplicate in row at %d\n", r);)
+                // DEBUG_PRINT(printf("apparently %d is equal to %d\n", cell, other);)
+
                 return true;
             }
         }
@@ -41,10 +40,8 @@ bool duplicate_in_col(Board *b, int c)
             Cell other = get_cell(b, c, r2);
             if (cell == other)
             {
-#ifdef DEBUG
-                printf("Duplicate in col at %d\n", c);
-                printf("apparently %d is equal to %d\n", cell, other);
-#endif
+                // DEBUG_PRINT(printf("Duplicate in col at %d\n", c);)
+                // DEBUG_PRINT(printf("apparently %d is equal to %d\n", cell, other);)
                 return true;
             }
         }
@@ -57,38 +54,30 @@ bool duplicate_in_col(Board *b, int c)
 /// @param x leftmost cell of box
 /// @param y topmost cell of box
 /// @return a boolean indicating if there is a duplicate in the box
-bool duplicate_in_box(Board *b, int c, int r)
+bool duplicate_in_box(Board *b, int x, int y)
 {
-#ifdef DEBUG
-    assert(c % b->base == 0);
-    assert(r % b->base == 0);
-#endif
-    for (int c1 = 0; c1 < b->base; c1++)
-    {
-        for (int r1 = 0; r1 < b->base; r1++)
-        {
-            Cell cell = get_cell(b, c + c1, r + r1);
-            if (IS_EMPTY(cell))
-                continue;
+    DEBUG_ASSERT(x % b->base == 0);
+    DEBUG_ASSERT(y % b->base == 0);
 
-            for (int c2 = c + c1 + 1; c2 < b->base; c2++)
-            {
-                for (int r2 = r + r1 + 1; r2 < b->base; r2++)
-                {
-                    Cell other = get_cell(b, c2, r2);
-                    if (cell == other)
-                    {
-#ifdef DEBUG
-                        printf("Duplicate in box at (%d, %d)\n", c1, c2);
-                        printf("apparently %d is equal to %d\n", cell, other);
-#endif
-                        return true;
-                    }
-                }
-            }
+    bool seen[b->side + 1]; // Tracks seen numbers (1 to side)
+    for (int i = 0; i <= b->side; i++)
+        seen[i] = false;
+
+    for (int r = 0; r < b->base; r++)
+    {
+        for (int c = 0; c < b->base; c++)
+        {
+            Cell cell = get_cell(b, x + c, y + r);
+            if (IS_EMPTY(cell))
+                continue; // Skip empty cells
+
+            if (seen[cell])
+                return true; // Duplicate found
+
+            seen[cell] = true; // Mark number as seen
         }
     }
-    return false;
+    return false; // No duplicates found
 }
 
 bool validate_board(Board *b)
@@ -104,9 +93,9 @@ bool validate_board(Board *b)
             return false;
         }
     }
-#ifdef DEBUG
-    printf("Found no duplicates in any rows or columns\n");
-#endif
+
+    //  DEBUG_PRINT(printf("Found no duplicates in any rows or columns\n");)
+
     for (int x = 0; x < b->side; x += b->base)
     {
         for (int y = 0; y < b->side; y += b->base)
@@ -117,8 +106,36 @@ bool validate_board(Board *b)
             }
         }
     }
-#ifdef DEBUG
-    printf("Found no duplicates in any boxes\n");
-#endif
+    // DEBUG_PRINT(printf("Found no duplicates in any boxes\n"));
     return true;
+}
+
+/// @brief checks if an update resultet in the board being invalid
+/// @param b the board
+/// @param x the x coordinate of the update
+/// @param y the y coordinate of the update
+/// @return a boolean indicating if the update was valid
+bool validate_update(Board *b, int x, int y)
+{
+    bool valid = true;
+
+#pragma omp parallel sections shared(valid)
+    {
+#pragma omp section
+        if (duplicate_in_row(b, y))
+            valid = false;
+#pragma omp section
+        if (duplicate_in_col(b, x))
+            valid = false;
+
+#pragma omp section
+        {
+            int bx = x - x % b->base;
+            int by = y - y % b->base;
+            if (duplicate_in_box(b, bx, by))
+                valid = false;
+        }
+    }
+
+    return valid;
 }

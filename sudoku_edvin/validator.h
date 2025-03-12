@@ -139,3 +139,5 @@ bool validate_update(Board *b, int x, int y)
 
     return valid;
 }
+
+

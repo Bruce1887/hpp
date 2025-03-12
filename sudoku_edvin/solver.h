@@ -1,6 +1,7 @@
 #pragma once
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #define Cell int8_t
 #define IS_EMPTY(cell) ((cell) == 0)
@@ -21,13 +22,14 @@ void usage(char *program_name)
 }
 
 typedef struct EmptyChain_struct EmptyChain;
+typedef struct CellPossibilities_struct CellPossibilities;
 typedef struct board_struct
 {
     int8_t base;
     int8_t side;
     Cell *cells;
 
-    int8_t num_empty;
+    int num_empty;
     EmptyChain *empty_chain;
     int num_initial_empty;
     EmptyChain **initial_empty;
@@ -35,7 +37,7 @@ typedef struct board_struct
 
 struct EmptyChain_struct
 {
-    int8_t idx;
+    int idx;
     struct EmptyChain_struct *next;
 };
 
@@ -57,8 +59,22 @@ inline Cell get_cell(Board *b, int x, int y)
 
 inline void get_coords(Board *b, int idx, int *x, int *y)
 {
+    DEBUG_ASSERT(idx < b->side * b->side);
     *x = idx % b->side;
     *y = idx / b->side;
+    DEBUG_ASSERT(*x < b->side);
+    DEBUG_ASSERT(*y < b->side);
+    DEBUG_ASSERT(*x >= 0);
+    DEBUG_ASSERT(*y >= 0);
+}
+
+inline int get_index(Board *b, int x, int y)
+{
+    DEBUG_ASSERT(x < b->side);
+    DEBUG_ASSERT(y < b->side);
+    DEBUG_ASSERT(x >= 0);
+    DEBUG_ASSERT(y >= 0);
+    return y * b->side + x;
 }
 
 void print_board(Board *b)

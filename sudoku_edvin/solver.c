@@ -10,21 +10,26 @@
 #include "solver.h"
 #include "validator.h"
 
+
 bool solve_my_board(Board *b)
 {
     if (b->num_empty == 0)
         return true;
 
-    int8_t idx = b->empty_chain->idx;
+    DEBUG_ASSERT(b->empty_chain != NULL);
+    int idx = b->empty_chain->idx;
+    DEBUG_ASSERT(idx < b->side * b->side);
+    DEBUG_ASSERT(b->cells[idx] == 0);
+    DEBUG_PRINT(printf("b->num_empty: %d\n", b->num_empty););
     // try all possible values in that cell
     for (int val = 1; val <= b->side; val++)
     {
         b->cells[idx] = val;
-        
         int x;
         int y;
         get_coords(b, idx, &x, &y);
-
+        DEBUG_PRINT(printf("testing val %d at (%d,%d)\n", val, x, y));
+        
         if (validate_update(b, x, y))
         { 
             EmptyChain *tmp = b->empty_chain;
@@ -59,10 +64,16 @@ int main(int argc, char *argv[])
     printf("side: %d\n", b->side);
     print_board(b);
 
+    printf("board first empty idx: %d\n", b->empty_chain->idx);
+    printf("board num empty: %d\n", b->num_empty);
+
     bool solved = solve_my_board(b);
+ 
     print_board(b);
     printf("Board is %s\n", solved ? "solved" : "not solved");
 
+    if(solved) assert(validate_board(b));
+    
     write_board_to_file(b);
 
     delete_board(b);

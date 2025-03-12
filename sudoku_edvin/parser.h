@@ -7,6 +7,9 @@
 #include <string.h>
 #include <assert.h>
 
+void initialise_emptychain(long file_size, int8_t *cells, Board *b);
+void initialise_cellpossibilities(long file_size, int8_t *cells, Board *b);
+
 Board *read_dat_file(char *filename, int N)
 {
     FILE *file = fopen(filename, "rb");
@@ -45,6 +48,8 @@ Board *read_dat_file(char *filename, int N)
     }
     fclose(file);
 
+    int8_t *cells = buffer + 2;
+
     Board *b = (Board *)malloc(sizeof(Board));
     b->base = buffer[0];
     b->side = buffer[1];
@@ -54,9 +59,29 @@ Board *read_dat_file(char *filename, int N)
 
     printf("file size: %ld\n", file_size);
 
+    initialise_emptychain(file_size, cells, b);
+
+
+    b->cells = malloc((file_size - 2) * sizeof(Cell));
+    memcpy(b->cells, cells, file_size - 2);
+
+    free(buffer);
+    return b;
+}
+
+
+void initialise_emptychain(long file_size, int8_t *cells, Board *b)
+{
     for (int i = 0; i < file_size - 2; i++)
-        if (IS_EMPTY(buffer[i + 2]))
+        if (IS_EMPTY(cells[i]))
         {
+            if (i < 0)
+            {
+                perror("Negative index in file, not good");
+                exit(EXIT_FAILURE);
+            }
+            assert(cells[i] == 0);
+
             if (b->empty_chain == NULL)
             {
                 b->empty_chain = (EmptyChain *)malloc(sizeof(EmptyChain));
@@ -70,6 +95,7 @@ Board *read_dat_file(char *filename, int N)
                 new_chain->next = b->empty_chain;
                 b->empty_chain = new_chain;
             }
+            assert(b->empty_chain->idx == i);
             b->num_empty++;
         }
 
@@ -83,11 +109,6 @@ Board *read_dat_file(char *filename, int N)
         b->initial_empty[i] = ec;
         ec = ec->next;
     }
-
-    b->cells = malloc((file_size - 2) * sizeof(int8_t));
-    b->cells = memcpy(b->cells, buffer + 2, file_size - 2);
-    free(buffer);
-    return b;
 }
 
 void write_board_to_file(Board *b)

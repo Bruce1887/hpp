@@ -10,8 +10,7 @@
 #include "solver.h"
 #include "validator.h"
 
-
-bool solve_my_board(Board *b)
+bool solve_my_board(Board *b, bool found)
 {
     if (b->num_empty == 0)
         return true;
@@ -28,16 +27,18 @@ bool solve_my_board(Board *b)
         int x;
         int y;
         get_coords(b, idx, &x, &y);
-        DEBUG_PRINT(printf("testing val %d at (%d,%d)\n", val, x, y));
-        
+        // DEBUG_PRINT(printf("testing val %d at (%d,%d)\n", val, x, y));
+
         if (validate_update(b, x, y))
-        { 
+        {
             EmptyChain *tmp = b->empty_chain;
             b->empty_chain = b->empty_chain->next;
             b->num_empty--;
 
-            if (solve_my_board(b))
+            if (solve_my_board(b,found))
+            {
                 return true;
+            }
 
             b->empty_chain = tmp;
             b->num_empty++;
@@ -54,10 +55,10 @@ int main(int argc, char *argv[])
     {
         usage(argv[0]);
     }
-    
-    #ifdef _OPENMP
-        printf("OpenMP version: %d\n", _OPENMP);
-    #endif
+
+#ifdef _OPENMP
+    printf("OpenMP version: %d\n", _OPENMP);
+#endif
 
     Board *b = read_dat_file(argv[1], 0);
     printf("base: %d\n", b->base);
@@ -67,13 +68,15 @@ int main(int argc, char *argv[])
     printf("board first empty idx: %d\n", b->empty_chain->idx);
     printf("board num empty: %d\n", b->num_empty);
 
-    bool solved = solve_my_board(b);
- 
-    print_board(b);
-    printf("Board is %s\n", solved ? "solved" : "not solved");
+    bool solution_found; 
+    solve_my_board(b,solution_found);
 
-    if(solved) assert(validate_board(b));
-    
+    print_board(b);
+    printf("Board is %s\n", solution_found ? "solved" : "not solved");
+
+    if (solution_found)
+        assert(validate_board(b));
+
     write_board_to_file(b);
 
     delete_board(b);

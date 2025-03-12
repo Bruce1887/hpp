@@ -136,8 +136,5 @@ bool validate_update(Board *b, int x, int y)
                 valid = false;
         }
     }
-
     return valid;
 }
-
-

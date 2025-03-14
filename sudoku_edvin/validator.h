@@ -118,17 +118,11 @@ bool validate_board(Board *b)
 bool validate_update(Board *b, int x, int y)
 {
     bool valid = true;
-
-#pragma omp parallel sections shared(valid)
     {
-#pragma omp section
         if (duplicate_in_row(b, y))
             valid = false;
-#pragma omp section
         if (duplicate_in_col(b, x))
             valid = false;
-
-#pragma omp section
         {
             int bx = x - x % b->base;
             int by = y - y % b->base;

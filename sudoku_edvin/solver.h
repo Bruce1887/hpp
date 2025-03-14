@@ -33,6 +33,10 @@ typedef struct board_struct
     EmptyChain *empty_chain;
     int num_initial_empty;
     EmptyChain **initial_empty;
+
+    unsigned     char **rows;
+    unsigned char **cols;
+    unsigned char **boxes;
 } Board;
 
 struct EmptyChain_struct

@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -Wall -O3 -ffast-math -march=native -ftree-vectorize -Winline -funroll-loops -fopenmp	
+CFLAGS := -Wall -O3 -ffast-math -march=native -ftree-vectorize -Winline -funroll-loops -fopenmp	-p
 INCLUDES := -I/opt/X11/include
 LDFLAGS := -L/opt/X11/lib -lX11 -lm
 
@@ -20,6 +20,9 @@ printer: printer.o
 
 debug: CFLAGS += -g -DDEBUG
 debug: solver
+
+profile: CFLAGS += -p
+profile: solver
 
 clean:
 	rm -f solver printer *.o output.dat

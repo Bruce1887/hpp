@@ -4,7 +4,10 @@
 #include <stdbool.h>
 
 #define Cell int8_t
-#define IS_EMPTY(cell) ((cell) == 0)
+#define Mask int64_t
+#define VACANT 0
+#define OCCUPIED 1
+#define IS_EMPTY(cell) ((cell) == VACANT)
 
 #ifdef DEBUG
 #include <assert.h>
@@ -21,44 +24,56 @@ void usage(char *program_name)
     exit(EXIT_FAILURE);
 }
 
-typedef struct EmptyChain_struct EmptyChain;
-typedef struct CellPossibilities_struct CellPossibilities;
 typedef struct board_struct
 {
     int8_t base;
     int8_t side;
     Cell *cells;
 
+    int mask_size;
+    Mask *empty_mask;
     int num_empty;
-    EmptyChain *empty_chain;
-    int num_initial_empty;
-    EmptyChain **initial_empty;
-
-    unsigned     char **rows;
-    unsigned char **cols;
-    unsigned char **boxes;
 } Board;
-
-struct EmptyChain_struct
-{
-    int idx;
-    struct EmptyChain_struct *next;
-};
-
-void print_ec(EmptyChain *ec)
-{
-    printf("Empty chain: ");
-    while (ec != NULL)
-    {
-        printf("%d ", ec->idx);
-        ec = ec->next;
-    }
-    printf("\n");
-}
 
 inline Cell get_cell(Board *b, int x, int y)
 {
     return b->cells[y * b->side + x];
+}
+
+void print_mask(Board *b)
+{
+    for (int i = 0; i < b->mask_size; i++)
+    {
+        for (int j = 63; j >= 0; j--)
+        { // Print from MSB to LSB
+            printf("%ld", (b->empty_mask[i] >> j) & 1);
+        }
+        printf(" "); // Space between each 64-bit chunk
+    }
+    printf("\n");
+}
+
+inline int get_first_empty(Board *b)
+{
+    for (int i = 0; i < b->mask_size; i++)
+    {
+        if (~b->empty_mask[i])
+        { // If there is at least one 0-bit
+            return i * 64 + __builtin_ctzll(~b->empty_mask[i]);
+        }
+    }
+    return -1; // No vacant cells found
+}
+
+inline void set_cell_status(Board *b, int idx, bool occupied)
+{
+    DEBUG_ASSERT(idx >= 0 && idx < b->side * b->side);
+    if (occupied)
+        b->empty_mask[idx / 64] |= ((uint64_t)1 << (idx % 64)); // Set bit to 1
+    else
+        b->empty_mask[idx / 64] &= ~((uint64_t)1 << (idx % 64)); // Clear bit (set to 0)
+
+    b->num_empty += occupied ? -1 : 1;
 }
 
 inline void get_coords(Board *b, int idx, int *x, int *y)
@@ -106,10 +121,6 @@ void print_board(Board *b)
 void delete_board(Board *b)
 {
     free(b->cells);
-    for (int i = 0; i < b->num_initial_empty; i++)
-    {
-        free(b->initial_empty[i]);
-    }
-    free(b->initial_empty);
+    free(b->empty_mask);
     free(b);
 }

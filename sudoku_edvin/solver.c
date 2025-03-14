@@ -16,18 +16,9 @@ bool solve_my_board(Board *b)
     if (b->num_empty == 0)
         return true;
 
-    DEBUG_ASSERT(b->empty_chain != NULL);
-    int idx = b->empty_chain->idx;
-
-    #ifdef DEBUG
-    EmptyChain *current = b->empty_chain;
-    while (current != NULL)
-    {
-        DEBUG_ASSERT(b->cells[current->idx] == 0);
-        current = current->next;
-    }
-    DEBUG_PRINT(puts("emptychain looks good\n"));
-    #endif
+    int idx = get_first_empty(b);
+    DEBUG_ASSERT(idx != -1);
+    // print_mask(b);
     DEBUG_ASSERT(idx < b->side * b->side);
     DEBUG_ASSERT(b->cells[idx] == 0);
     DEBUG_PRINT(printf("b->num_empty: %d\n", b->num_empty));
@@ -36,6 +27,9 @@ bool solve_my_board(Board *b)
     for (int val = 1; val <= b->side; val++)
     {
         b->cells[idx] = val;
+        set_cell_status(b, idx, OCCUPIED);
+        // printf("idx: %d, val: %d\n", idx, val);
+
         int x;
         int y;
         get_coords(b, idx, &x, &y);
@@ -43,18 +37,15 @@ bool solve_my_board(Board *b)
 
         if (validate_update(b, x, y))
         {
-            EmptyChain *tmp = b->empty_chain;
-            b->empty_chain = b->empty_chain->next;
-            b->num_empty--;
 
             if (solve_my_board(b))
             {
                 return true;
             }
-
-            b->empty_chain = tmp;
-            b->num_empty++;
         }
+            set_cell_status(b, idx, VACANT);
+            b->cells[idx] = VACANT;
+            // printf("set idx %d to vacant\n", idx);
     }
 
     b->cells[idx] = 0;
@@ -77,16 +68,17 @@ int main(int argc, char *argv[])
     printf("side: %d\n", b->side);
     print_board(b);
 
-    printf("board first empty idx: %d\n", b->empty_chain->idx);
     printf("board num empty: %d\n", b->num_empty);
 
     bool solution_found = solve_my_board(b);
-    print_board(b);
 
     printf("Board is %s\n", solution_found ? "solved" : "not solved");
 
+    
+    print_board(b);
     if (solution_found)
         assert(validate_board(b));
+    
 
     write_board_to_file(b);
 

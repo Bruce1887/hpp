@@ -7,9 +7,6 @@
 #include <string.h>
 #include <assert.h>
 
-void initialise_emptychain(long file_size, int8_t *cells, Board *b);
-void initialise_cellpossibilities(long file_size, int8_t *cells, Board *b);
-
 Board *read_dat_file(char *filename, int N)
 {
     FILE *file = fopen(filename, "rb");
@@ -55,60 +52,33 @@ Board *read_dat_file(char *filename, int N)
     b->side = buffer[1];
     assert(file_size == b->side * b->side + 2);
     b->num_empty = 0;
-    b->empty_chain = NULL;
+
+    // initialise the empty mask
+    b->mask_size = (b->side * b->side + 8 * sizeof(Mask) - 1) / (8 * sizeof(Mask));
+    b->empty_mask = (Mask *)calloc(b->mask_size, sizeof(Mask));
+    for (int i = 0; i < b->mask_size; i++)
+    {
+        // initialise all bits to 1
+        b->empty_mask[i] = (Mask)~0;
+    }
+
+
+    for (int i = 0; i < b->side * b->side; i++)
+    {
+        if (IS_EMPTY(cells[i]))
+        {
+            b->num_empty++;
+            b->empty_mask[i / 64] &= ~((uint64_t)1 << (i % 64));  // Ensure empty cells are 0
+        }
+    }
 
     printf("file size: %ld\n", file_size);
-
-    initialise_emptychain(file_size, cells, b);
-
 
     b->cells = malloc((file_size - 2) * sizeof(Cell));
     memcpy(b->cells, cells, file_size - 2);
 
     free(buffer);
     return b;
-}
-
-
-void initialise_emptychain(long file_size, int8_t *cells, Board *b)
-{
-    for (int i = 0; i < file_size - 2; i++)
-        if (IS_EMPTY(cells[i]))
-        {
-            if (i < 0)
-            {
-                perror("Negative index in file, not good");
-                exit(EXIT_FAILURE);
-            }
-            assert(cells[i] == 0);
-
-            if (b->empty_chain == NULL)
-            {
-                b->empty_chain = (EmptyChain *)malloc(sizeof(EmptyChain));
-                b->empty_chain->idx = i;
-                b->empty_chain->next = NULL;
-            }
-            else
-            {
-                EmptyChain *new_chain = (EmptyChain *)malloc(sizeof(EmptyChain));
-                new_chain->idx = i;
-                new_chain->next = b->empty_chain;
-                b->empty_chain = new_chain;
-            }
-            assert(b->empty_chain->idx == i);
-            b->num_empty++;
-        }
-
-    // keep track of initial empty cells, they are not freed when backtracking but when deleting the board
-    b->num_initial_empty = b->num_empty;
-    b->initial_empty = malloc(b->num_empty * sizeof(EmptyChain));
-    EmptyChain *ec = b->empty_chain;
-    for (int i = 0; i < b->num_empty; i++)
-    {
-        assert(ec != NULL); // we should have exactly num_empty elements
-        b->initial_empty[i] = ec;
-        ec = ec->next;
-    }
 }
 
 void write_board_to_file(Board *b)

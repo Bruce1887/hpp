@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <assert.h>
 
-bool duplicate_in_row(Board *b, int r)
+inline bool duplicate_in_row(Board *b, int r)
 {
     for (int c = 0; c < b->side; c++)
     {
@@ -19,7 +19,6 @@ bool duplicate_in_row(Board *b, int r)
             {
                 // DEBUG_PRINT(printf("Duplicate in row at %d\n", r);)
                 // DEBUG_PRINT(printf("apparently %d is equal to %d\n", cell, other);)
-
                 return true;
             }
         }
@@ -27,7 +26,7 @@ bool duplicate_in_row(Board *b, int r)
     return false;
 }
 
-bool duplicate_in_col(Board *b, int c)
+inline bool duplicate_in_col(Board *b, int c)
 {
     for (int r = 0; r < b->side; r++)
     {
@@ -54,7 +53,7 @@ bool duplicate_in_col(Board *b, int c)
 /// @param x leftmost cell of box
 /// @param y topmost cell of box
 /// @return a boolean indicating if there is a duplicate in the box
-bool duplicate_in_box(Board *b, int x, int y)
+inline bool duplicate_in_box(Board *b, int x, int y)
 {
     DEBUG_ASSERT(x % b->base == 0);
     DEBUG_ASSERT(y % b->base == 0);
@@ -117,18 +116,15 @@ bool validate_board(Board *b)
 /// @return a boolean indicating if the update was valid
 bool validate_update(Board *b, int x, int y)
 {
-    bool valid = true;
-    {
-        if (duplicate_in_row(b, y))
-            valid = false;
-        if (duplicate_in_col(b, x))
-            valid = false;
-        {
-            int bx = x - x % b->base;
-            int by = y - y % b->base;
-            if (duplicate_in_box(b, bx, by))
-                valid = false;
-        }
-    }
-    return valid;
+    if (duplicate_in_row(b, y))
+        return false;
+    if (duplicate_in_col(b, x))
+        return false;
+
+    int bx = x - x % b->base;
+    int by = y - y % b->base;
+    if (duplicate_in_box(b, bx, by))
+        return false;
+
+    return true;
 }

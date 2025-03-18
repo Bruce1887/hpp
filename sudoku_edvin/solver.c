@@ -9,7 +9,7 @@
 #include "parser.h"
 #include "solver.h"
 #include "validator.h"
-
+#include <time.h>
 
 bool solve_my_board(Board *b)
 {
@@ -27,13 +27,12 @@ bool solve_my_board(Board *b)
     for (int val = 1; val <= b->side; val++)
     {
         b->cells[idx] = val;
-        set_cell_status(b, idx, OCCUPIED);
-        // printf("idx: %d, val: %d\n", idx, val);
+        update_mask(b->empty_mask, idx, OCCUPIED);
+        b->num_empty--;
 
         int x;
         int y;
         get_coords(b, idx, &x, &y);
-        // DEBUG_PRINT(printf("testing val %d at (%d,%d)\n", val, x, y));
 
         if (validate_update(b, x, y))
         {
@@ -43,9 +42,9 @@ bool solve_my_board(Board *b)
                 return true;
             }
         }
-            set_cell_status(b, idx, VACANT);
+            update_mask(b->empty_mask, idx, VACANT);
+            b->num_empty++;
             b->cells[idx] = VACANT;
-            // printf("set idx %d to vacant\n", idx);
     }
 
     b->cells[idx] = 0;
@@ -70,10 +69,14 @@ int main(int argc, char *argv[])
 
     printf("board num empty: %d\n", b->num_empty);
 
+    clock_t start_time = clock();
     bool solution_found = solve_my_board(b);
+    clock_t end_time = clock();
+    double time_spent = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    
+    printf("Time taken to solve the board: %f seconds\n", time_spent);
 
     printf("Board is %s\n", solution_found ? "solved" : "not solved");
-
     
     print_board(b);
     if (solution_found)

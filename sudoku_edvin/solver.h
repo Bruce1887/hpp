@@ -30,6 +30,11 @@ typedef struct board_struct
     int8_t side;
     Cell *cells;
 
+    Mask **c_mask;
+    Mask **r_mask;
+    Mask **b_mask;
+    int num_boxes;
+
     int mask_size;
     Mask *empty_mask;
     int num_empty;
@@ -65,15 +70,13 @@ inline int get_first_empty(Board *b)
     return -1; // No vacant cells found
 }
 
-inline void set_cell_status(Board *b, int idx, bool occupied)
+inline void update_mask(Mask *mask, int idx, bool val)
 {
     DEBUG_ASSERT(idx >= 0 && idx < b->side * b->side);
-    if (occupied)
-        b->empty_mask[idx / 64] |= ((uint64_t)1 << (idx % 64)); // Set bit to 1
+    if (val)
+        mask[idx / 64] |= ((uint64_t)1 << (idx % 64)); // Set bit to 1
     else
-        b->empty_mask[idx / 64] &= ~((uint64_t)1 << (idx % 64)); // Clear bit (set to 0)
-
-    b->num_empty += occupied ? -1 : 1;
+        mask[idx / 64] &= ~((uint64_t)1 << (idx % 64)); // Clear bit (set to 0)
 }
 
 inline void get_coords(Board *b, int idx, int *x, int *y)

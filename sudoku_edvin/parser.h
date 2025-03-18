@@ -7,6 +7,9 @@
 #include <string.h>
 #include <assert.h>
 
+void initialise_empty_mask(Board *b);
+void initialise_cell_masks(Board *b);
+
 Board *read_dat_file(char *filename, int N)
 {
     FILE *file = fopen(filename, "rb");
@@ -45,40 +48,78 @@ Board *read_dat_file(char *filename, int N)
     }
     fclose(file);
 
-    int8_t *cells = buffer + 2;
-
     Board *b = (Board *)malloc(sizeof(Board));
     b->base = buffer[0];
     b->side = buffer[1];
     assert(file_size == b->side * b->side + 2);
+    assert(b->side % b->base == 0);
+
+    int8_t *cells = buffer + 2;
+    b->cells = malloc((file_size - 2) * sizeof(Cell));
+    memcpy(b->cells, cells, file_size - 2);
+    free(buffer);
+
     b->num_empty = 0;
 
-    // initialise the empty mask
     b->mask_size = (b->side * b->side + 8 * sizeof(Mask) - 1) / (8 * sizeof(Mask));
+    printf("mask size: %d\n", b->mask_size);
+    initialise_empty_mask(b);
+    initialise_cell_masks(b);
+
+    printf("file size: %ld\n", file_size);
+
+    return b;
+}
+
+void initialise_empty_mask(Board *b)
+{
+    // initialise the empty mask
     b->empty_mask = (Mask *)calloc(b->mask_size, sizeof(Mask));
     for (int i = 0; i < b->mask_size; i++)
     {
         // initialise all bits to 1
-        b->empty_mask[i] = (Mask)~0;
+        b->empty_mask[i] = (Mask)~OCCUPIED;
     }
-
-
     for (int i = 0; i < b->side * b->side; i++)
     {
-        if (IS_EMPTY(cells[i]))
+        if (IS_EMPTY(b->cells[i]))
         {
             b->num_empty++;
-            b->empty_mask[i / 64] &= ~((uint64_t)1 << (i % 64));  // Ensure empty cells are 0
+            b->empty_mask[i / 64] &= ~((uint64_t)1 << (i % 64)); // Ensure empty cells are 0
         }
     }
+}
 
-    printf("file size: %ld\n", file_size);
+// initilises the masks for the rows, columns and boxes
+void initialise_cell_masks(Board *b)
+{
+    assert(b->side % b->base == 0);
+    b->num_boxes = b->side / b->base;
 
-    b->cells = malloc((file_size - 2) * sizeof(Cell));
-    memcpy(b->cells, cells, file_size - 2);
+    b->r_mask = (Mask **)malloc(b->side * sizeof(Mask *));
+    b->c_mask = (Mask **)malloc(b->side * sizeof(Mask *));
+    b->b_mask = (Mask **)malloc(b->num_boxes * sizeof(Mask *));
 
-    free(buffer);
-    return b;
+    for (int i = 0; i < b->side; i++)
+    {
+        b->r_mask[i] = (Mask *)calloc(b->mask_size, sizeof(Mask));
+        b->c_mask[i] = (Mask *)calloc(b->mask_size, sizeof(Mask));
+        for (int j = 0; j < b->mask_size; j++)
+        {
+            // initialise all bits to 1
+            b->r_mask[i][j] = (Mask)~OCCUPIED;
+            b->c_mask[i][j] = (Mask)~OCCUPIED;
+        }
+    }
+    for (int i = 0; i < b->num_boxes; i++)
+    {
+        b->b_mask[i] = (Mask *)calloc(b->mask_size, sizeof(Mask));
+        for (int j = 0; j < b->mask_size; j++)
+        {
+            // initialise all bits to 1
+            b->b_mask[i][j] = (Mask)~OCCUPIED;
+        }
+    }
 }
 
 void write_board_to_file(Board *b)

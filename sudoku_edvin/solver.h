@@ -5,6 +5,7 @@
 
 #define Cell int8_t
 #define Mask int64_t
+#define MASK_BITSIZE (sizeof(Mask) * 8)
 #define VACANT 0
 #define OCCUPIED 1
 #define IS_EMPTY(cell) ((cell) == VACANT)
@@ -18,11 +19,6 @@
 #define DEBUG_PRINT(cond) ((void)0);
 #endif
 
-void usage(char *program_name)
-{
-    printf("Usage: %s <filename> \n", program_name);
-    exit(EXIT_FAILURE);
-}
 
 typedef struct board_struct
 {
@@ -30,100 +26,34 @@ typedef struct board_struct
     int8_t side;
     Cell *cells;
 
+    // Masks for rows, columns and boxes. Used to check for duplicates
+    int cell_mask_size;
     Mask **c_mask;
     Mask **r_mask;
     Mask **b_mask;
-    int num_boxes;
 
-    int mask_size;
+    // Mask for empty cells. Used to find the next empty cell
+    int empty_mask_size;
     Mask *empty_mask;
     int num_empty;
 } Board;
 
-inline Cell get_cell(Board *b, int x, int y)
-{
-    return b->cells[y * b->side + x];
-}
+Cell get_cell(Board *b, int row, int col);
 
-void print_mask(Board *b)
-{
-    for (int i = 0; i < b->mask_size; i++)
-    {
-        for (int j = 63; j >= 0; j--)
-        { // Print from MSB to LSB
-            printf("%ld", (b->empty_mask[i] >> j) & 1);
-        }
-        printf(" "); // Space between each 64-bit chunk
-    }
-    printf("\n");
-}
+// gets top left cell of box
+int get_box_idx(Board *b, int row, int col);
 
-inline int get_first_empty(Board *b)
-{
-    for (int i = 0; i < b->mask_size; i++)
-    {
-        if (~b->empty_mask[i])
-        { // If there is at least one 0-bit
-            return i * 64 + __builtin_ctzll(~b->empty_mask[i]);
-        }
-    }
-    return -1; // No vacant cells found
-}
+void print_mask(Mask *m, int m_size);
 
-inline void update_mask(Mask *mask, int idx, bool val)
-{
-    DEBUG_ASSERT(idx >= 0 && idx < b->side * b->side);
-    if (val)
-        mask[idx / 64] |= ((uint64_t)1 << (idx % 64)); // Set bit to 1
-    else
-        mask[idx / 64] &= ~((uint64_t)1 << (idx % 64)); // Clear bit (set to 0)
-}
+int get_first_empty(Board *b);
 
-inline void get_coords(Board *b, int idx, int *x, int *y)
-{
-    DEBUG_ASSERT(idx < b->side * b->side);
-    *x = idx % b->side;
-    *y = idx / b->side;
-    DEBUG_ASSERT(*x < b->side);
-    DEBUG_ASSERT(*y < b->side);
-    DEBUG_ASSERT(*x >= 0);
-    DEBUG_ASSERT(*y >= 0);
-}
 
-inline int get_index(Board *b, int x, int y)
-{
-    DEBUG_ASSERT(x < b->side);
-    DEBUG_ASSERT(y < b->side);
-    DEBUG_ASSERT(x >= 0);
-    DEBUG_ASSERT(y >= 0);
-    return y * b->side + x;
-}
+void update_mask(Mask *mask, int idx, bool val);
 
-void print_board(Board *b)
-{
-    for (int i = 0; i < b->side; i++)
-    {
-        printf("##");
-    }
-    printf("\n");
-    for (int i = 0; i < b->side; i++)
-    {
-        for (int j = 0; j < b->side; j++)
-        {
-            printf("%d ", b->cells[i * b->side + j]);
-        }
-        printf("\n");
-    }
-    for (int i = 0; i < b->side; i++)
-    {
-        printf("##");
-    }
-    printf("\n");
-}
+void update_cell_masks(Board *b, int x, int y, int val, bool set);
 
-void delete_board(Board *b)
-{
-    free(b->cells);
-    free(b->empty_mask);
-    free(b);
-}
+void get_coords(Board *b, int idx, int *x, int *y);
+
+int get_index(Board *b, int x, int y);
+
+void print_board(Board *b);

@@ -215,6 +215,50 @@ void write_particles_to_file(int N)
     fclose(file);
 }
 
+static inline void calculate_forces_over_mass_OPENMP_REDUCE(int N, double *buf)
+{
+    double G_over_N = 100.0 / N; // Given in the assignment
+    double epsilon0 = 1e-3;      // Plummer softening
+
+    memset(buf, 0, 2 * N * sizeof(double)); // Reset forces between ticks
+
+    #pragma omp parallel for schedule(dynamic,8) reduction(+:buf_private[:N])
+    for (int i = 0; i < N; i++)
+    {
+        double p_pos_x_i = P_pos_x[i];
+        double p_pos_y_i = P_pos_y[i];
+
+        double buf_2i = 0.0;
+        double buf_2i1 = 0.0;
+        double mass_i = P_mass[i];
+
+        for (int j = i + 1; j < N; j++)
+        {
+            double dx = P_pos_x[j] - p_pos_x_i;
+            double dy = P_pos_y[j] - p_pos_y_i;
+            double r2 = dx * dx + dy * dy;
+            double r = sqrt(r2) + epsilon0;
+            double F = G_over_N / (r * r * r);
+
+            double Fx = F * dx;
+            double Fy = F * dy;
+
+            // Accumulate force for i
+            buf_2i += Fx * P_mass[j];
+            buf_2i1 += Fy * P_mass[j];
+
+            // Accumulate opposite force for j (no atomic needed!)
+            buf_private[2 * j] -= Fx * mass_i;
+            buf_private[2 * j + 1] -= Fy * mass_i;
+        }
+
+        buf_private[2 * i] += buf_2i;
+        buf_private[2 * i + 1] += buf_2i1;
+    }
+
+}
+
+
 static inline void calculate_forces_over_mass_OPENMP(int N, double *buf)
 
 {

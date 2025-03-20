@@ -3,9 +3,10 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "solver.h"
 #include <string.h>
 #include <assert.h>
+
+#include "board.h"
 
 void initialise_empty_mask(Board *b);
 void initialise_cell_masks(Board *b);

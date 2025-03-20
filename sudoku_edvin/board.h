@@ -1,4 +1,5 @@
 #pragma once
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -19,7 +20,6 @@
 #define DEBUG_PRINT(cond) ((void)0);
 #endif
 
-
 typedef struct board_struct
 {
     int8_t base;
@@ -27,16 +27,19 @@ typedef struct board_struct
     Cell *cells;
 
     // Masks for rows, columns and boxes. Used to check for duplicates
-    int cell_mask_size;
+    int cell_mask_size; // the amount of mask needed to store a row, column or box
     Mask **c_mask;
     Mask **r_mask;
     Mask **b_mask;
 
     // Mask for empty cells. Used to find the next empty cell
-    int empty_mask_size;
+    int empty_mask_size; // the amount of masks needed to store all cells
     Mask *empty_mask;
     int num_empty;
 } Board;
+
+void delete_board(Board *b);
+void print_board(Board *b);
 
 Cell get_cell(Board *b, int row, int col);
 
@@ -47,7 +50,6 @@ void print_mask(Mask *m, int m_size);
 
 int get_first_empty(Board *b);
 
-
 void update_mask(Mask *mask, int idx, bool val);
 
 void update_cell_masks(Board *b, int x, int y, int val, bool set);
@@ -56,4 +58,4 @@ void get_coords(Board *b, int idx, int *x, int *y);
 
 int get_index(Board *b, int x, int y);
 
-void print_board(Board *b);
+Board* deep_copy_board(const Board* src);

@@ -1,9 +1,8 @@
 #pragma once
-
-#include "solver.h"
 #include <stdbool.h>
 #include <assert.h>
 
+#include "board.h"
 bool check_mask(Mask *mask, int value);
 
 bool duplicate_in_row(Board *b, int r, int value);

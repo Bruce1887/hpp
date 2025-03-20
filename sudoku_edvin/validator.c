@@ -69,8 +69,7 @@ bool validate_board(Board *b)
     return true;
 }
 
-// TODO: add an inline here
-bool validate_update(Board *b, int row, int col, int value)
+inline bool validate_update(Board *b, int row, int col, int value)
 {
     DEBUG_PRINT(printf("Validating update at (%d, %d) with value %d\n", row, col, value));
     // print_board(b);

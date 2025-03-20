@@ -20,9 +20,11 @@ void delete_masks(Board *b)
 }
 void delete_board(Board *b)
 {
+    DEBUG_ASSERT(b != NULL);
     free(b->cells);
     delete_masks(b);
     free(b);
+    b = NULL;
 }
 
 void print_board(Board *b)

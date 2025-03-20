@@ -53,14 +53,9 @@ Board *read_dat_file(char *filename, int N)
 
     b->empty_mask_size = (b->side * b->side + 8 * sizeof(Mask) - 1) / (8 * sizeof(Mask));
     b->cell_mask_size = (b->side + 8 * sizeof(Mask) - 1) / (8 * sizeof(Mask));
-    printf("empty mask size: %d\n", b->empty_mask_size);
     initialise_empty_mask(b);
-    // print_mask(b, b->empty_mask, b->empty_mask_size);
-    printf("cell mask size: %d\n", b->cell_mask_size);
+
     initialise_cell_masks(b);
-    // print_mask(b, b->r_mask[0], b->cell_mask_size);
-    // print_mask(b, b->c_mask[0], b->cell_mask_size);
-    // print_mask(b, b->b_mask[0], b->cell_mask_size);
 
     printf("file size: %ld\n", file_size);
 
@@ -118,7 +113,6 @@ void initialise_cell_masks(Board *b)
             Cell val = get_cell(b, r, c);
             if (IS_EMPTY(val) == false)
             {       
-                // printf("found occupied cell at (%d, %d) with value %d\n", r, c, val);
                 num_occupied_found++;
                 Mask *rm = b->r_mask[r];
                 Mask *cm = b->c_mask[c];
@@ -131,25 +125,6 @@ void initialise_cell_masks(Board *b)
         }
     }
     assert(num_occupied_found == b->side * b->side - b->num_empty);
-    /*
-    print_board(b);
-    puts("\nrows");
-    for (int mask_idx = 0; mask_idx < b->side; mask_idx++)
-    {
-        print_mask(b->r_mask[mask_idx], b->cell_mask_size);
-    }
-    puts("\ncolumns");
-    for (int mask_idx = 0; mask_idx < b->side; mask_idx++)
-    {
-        print_mask(b->c_mask[mask_idx], b->cell_mask_size);
-    }
-    puts("\nboxes");
-    for (int mask_idx = 0; mask_idx < b->side; mask_idx++)
-    {
-        print_mask(b->b_mask[mask_idx], b->cell_mask_size);
-    }
-    assert(false);
-    */
 }
 
 void write_board_to_file(Board *b)

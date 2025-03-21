@@ -63,6 +63,7 @@ int get_box_idx(Board *b, int row, int col)
     int box_idx = box_col / b->base + box_r / b->base * b->base;
     return box_idx;
 }
+
 inline void print_mask(Mask *m, int m_size)
 {
     for (int i = 0; i < m_size; i++)

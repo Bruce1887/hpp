@@ -3,7 +3,7 @@
 
 inline bool check_mask(Mask *mask, int value)
 {
-    value--;
+    value--; // when checking if i.e. 1 is in the mask, we want to check the first bit 
     DEBUG_ASSERT(value >= 0);
     int idx = value / MASK_BITSIZE;
     int bit_pos = value % MASK_BITSIZE;

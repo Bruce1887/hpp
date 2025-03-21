@@ -10,6 +10,8 @@
 #include <stdatomic.h>
 #include <omp.h>
 #include <assert.h>
+#include <unistd.h>  // For getpid()
+#include <pthread.h>   // For pthread_self()
 
 #include "parser.h"
 #include "validator.h"
@@ -18,7 +20,7 @@
 Board *final_board = NULL;
 atomic_bool solution_found = false;
 double solution_time;
-const int SUDOKU_OMP_DEPTH = 64;
+const int SUDOKU_OMP_DEPTH = 48;
 
 void usage(char *program_name)
 {
@@ -31,14 +33,10 @@ bool solve_my_board_SEQ(Board *b)
     if (b->num_empty == 0)
         return true;
 
-    // DEBUG_ASSERT(b->num_empty > 47);
     int idx = get_first_empty(b);
-    DEBUG_PRINT(printf("\n### NEW EMPTY, idx; %d ###\n", idx));
     DEBUG_ASSERT(idx != -1);
     DEBUG_ASSERT(idx < b->side * b->side);
-    DEBUG_PRINT(printf("b->cells[%d]: %d\n", idx, b->cells[idx]));
     DEBUG_ASSERT(b->cells[idx] == 0);
-    DEBUG_PRINT(printf("b->num_empty: %d\n", b->num_empty));
 
     // try all possible values in that cell
     for (int val = 1; val <= b->side; val++)
@@ -53,7 +51,6 @@ bool solve_my_board_SEQ(Board *b)
 
         if (validate_update(b, row, col, val))
         {
-            DEBUG_PRINT(print_board(b));
             update_cell_masks(b, row, col, val, OCCUPIED);
             if (solve_my_board_SEQ(b))
             {
@@ -62,7 +59,6 @@ bool solve_my_board_SEQ(Board *b)
             else
             {
                 // undo the update
-                DEBUG_PRINT(printf("Undoing update at (%d, %d) with value %d\n", row, col, val));
                 update_cell_masks(b, row, col, val, VACANT);
             }
         }
@@ -95,7 +91,6 @@ void solve_for_one(Board *b, int val)
 
     if (validate_update(b, row, col, val))
     {
-        DEBUG_PRINT(print_board(b));
         update_cell_masks(b, row, col, val, OCCUPIED);
 
         solve_my_board_OPENMP(b);
@@ -107,11 +102,11 @@ void solve_for_one(Board *b, int val)
 
 void solve_my_board_OPENMP(Board *b)
 {
+    // printf("omp_level(): %d, pthread_self: %ld\n",omp_get_level(), pthread_self());
     bool expected = true;
     bool new = false;
     if (atomic_compare_exchange_strong(&solution_found, &expected, new))
     {
-        printf("Solution found\n");
         return;
     }
     if (b->num_empty == 0)
@@ -120,13 +115,10 @@ void solve_my_board_OPENMP(Board *b)
         bool new = true;
         if (atomic_compare_exchange_strong(&solution_found, &expected, new))
         {
-            solution_time = omp_get_wtime();
-            printf("######## SOLVED ########\n");
             DEBUG_ASSERT(final_board == NULL);
             final_board = deep_copy_board(b);
             DEBUG_ASSERT(validate_board(b));
             DEBUG_ASSERT(solution_found);
-            DEBUG_PRINT(printf("Final board validated\n"));
         }
         return;
     }
@@ -135,17 +127,14 @@ void solve_my_board_OPENMP(Board *b)
     {
         if (solve_my_board_SEQ(b))
         {
-            solution_time = omp_get_wtime();
-            printf("######## SOLVED ########\n");
             DEBUG_ASSERT(final_board == NULL);
             final_board = deep_copy_board(b);
             DEBUG_ASSERT(validate_board(b));
             DEBUG_ASSERT(solution_found);
-            DEBUG_PRINT(printf("Final board validated\n"));
         }
         return;
     }
-    
+
 #pragma omp parallel
     for (int val = 1; val <= b->side; val++)
     {
@@ -163,7 +152,16 @@ void solve_my_board_OPENMP(Board *b)
     }
 }
 
-
+void solve_omp_init(){
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            Board *b = read_dat_file("sudoku.dat", 0);
+            solve_my_board_OPENMP(b);
+        }
+    }
+}
 #endif
 
 int main(int argc, char *argv[])
@@ -200,7 +198,7 @@ int main(int argc, char *argv[])
     solve_my_board_OPENMP(b);
     end_time = omp_get_wtime();
     printf("Time taken to solve the board: %f seconds\n", end_time - start_time);
-    printf("time to find solution: %f\n", solution_time - start_time);
+    // printf("time to find solution: %f\n", solution_time - start_time);
 #endif
 
 #ifdef SEQ

@@ -11,20 +11,22 @@
 #include <omp.h>
 #include <assert.h>
 #include <unistd.h>  // For getpid()
-#include <pthread.h>   // For pthread_self()
+#include <pthread.h> // For pthread_self()
 
 #include "parser.h"
 #include "validator.h"
 #include "board.h"
 
+int num_threads = -1;
 Board *final_board = NULL;
 atomic_bool solution_found = false;
 double solution_time;
-const int SUDOKU_OMP_DEPTH = 48;
+int SUDOKU_OMP_DEPTH = -1;
+float SUDOKU_OMP_DEPTH_FACTOR = 0.95;
 
 void usage(char *program_name)
 {
-    printf("Usage: %s <filename> <num_threads> \n", program_name);
+    printf("Usage: %s <filename> <num_threads> [depth_factor] \n", program_name);
     exit(EXIT_FAILURE);
 }
 
@@ -75,7 +77,7 @@ bool solve_my_board_SEQ(Board *b)
 void solve_my_board_OPENMP(Board *b);
 void solve_for_one(Board *b, int val)
 {
-    if (solution_found)
+    if(atomic_load(&solution_found))
     {
         delete_board(b);
         return;
@@ -102,7 +104,6 @@ void solve_for_one(Board *b, int val)
 
 void solve_my_board_OPENMP(Board *b)
 {
-    // printf("omp_level(): %d, pthread_self: %ld\n",omp_get_level(), pthread_self());
     bool expected = true;
     bool new = false;
     if (atomic_compare_exchange_strong(&solution_found, &expected, new))
@@ -123,41 +124,47 @@ void solve_my_board_OPENMP(Board *b)
         return;
     }
 
-    if (omp_get_level() > SUDOKU_OMP_DEPTH)
+    
+    if (SUDOKU_OMP_DEPTH > b->num_empty)
     {
+        // solve sequentially
         if (solve_my_board_SEQ(b))
         {
-            DEBUG_ASSERT(final_board == NULL);
-            final_board = deep_copy_board(b);
-            DEBUG_ASSERT(validate_board(b));
-            DEBUG_ASSERT(solution_found);
+            bool expected = false;
+            bool new = true;
+            if (atomic_compare_exchange_strong(&solution_found, &expected, new))
+            {
+                DEBUG_ASSERT(final_board == NULL);
+                final_board = deep_copy_board(b);
+                DEBUG_ASSERT(validate_board(b));
+                DEBUG_ASSERT(solution_found);
+            }
         }
         return;
     }
 
-#pragma omp parallel
     for (int val = 1; val <= b->side; val++)
     {
-#pragma omp single nowait
-        {
+        Board *new_board = deep_copy_board(b);
 #pragma omp task
+        {
+            if(atomic_load(&solution_found) == false)
             {
-                if (solution_found == false)
-                {
-                    Board *new_board = deep_copy_board(b);
-                    solve_for_one(new_board, val);
-                }
+                solve_for_one(new_board, val);
+            }
+            else {
+                delete_board(new_board);
             }
         }
     }
 }
 
-void solve_omp_init(){
-    #pragma omp parallel
+void solve_OPENMP_init(Board *b)
+{
+#pragma omp parallel num_threads(num_threads)
     {
-        #pragma omp single
+#pragma omp single nowait
         {
-            Board *b = read_dat_file("sudoku.dat", 0);
             solve_my_board_OPENMP(b);
         }
     }
@@ -166,23 +173,40 @@ void solve_omp_init(){
 
 int main(int argc, char *argv[])
 {
-    if (argc != 3)
+    if (argc != 3 && argc != 4)
     {
         usage(argv[0]);
     }
 
 #ifdef _OPENMP
     printf("OpenMP version: %d\n", _OPENMP);
-    omp_set_num_threads(atoi(argv[2]));
-    printf("Number of threads: %d\n", atoi(argv[2]));
-    printf("max recursive depth: %d\n", SUDOKU_OMP_DEPTH);
-    omp_set_nested(1);
+    num_threads = atoi(argv[2]);
+    printf("Number of threads: %d\n", num_threads);
 #endif
 #ifdef SEQ
     puts("Running sequentially");
 #endif
 
     Board *b = read_dat_file(argv[1], 0);
+
+#ifdef _OPENMP
+    printf("num initial empty cells: %d\n", b->num_empty);
+    if (argc == 4)
+    {
+        SUDOKU_OMP_DEPTH_FACTOR = atof(argv[3]);
+        if (SUDOKU_OMP_DEPTH_FACTOR <= 0 || SUDOKU_OMP_DEPTH_FACTOR > 1)
+        {
+            printf("Invalid depth factor: %f. Value should be in the range (0,1].\n", SUDOKU_OMP_DEPTH_FACTOR);
+            exit(EXIT_FAILURE);
+        }
+    }
+    else
+    {
+        printf("Using default depth factor: %f\n", SUDOKU_OMP_DEPTH_FACTOR);
+    }
+    SUDOKU_OMP_DEPTH = b->num_empty * SUDOKU_OMP_DEPTH_FACTOR;
+    printf("max depth: %d\n", SUDOKU_OMP_DEPTH);
+#endif
 
     printf("\nStarting timer...\n");
 
@@ -195,7 +219,8 @@ int main(int argc, char *argv[])
 #else
     double start_time, end_time;
     start_time = omp_get_wtime();
-    solve_my_board_OPENMP(b);
+    // solve_my_board_OPENMP(b);
+    solve_OPENMP_init(b);
     end_time = omp_get_wtime();
     printf("Time taken to solve the board: %f seconds\n", end_time - start_time);
     // printf("time to find solution: %f\n", solution_time - start_time);
@@ -216,8 +241,5 @@ int main(int argc, char *argv[])
         printf("No solution found\n");
     }
 #endif
-
-    delete_board(b);
-
     exit(EXIT_SUCCESS);
 }

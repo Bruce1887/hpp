@@ -6,6 +6,7 @@
 #include "board.h"
 void delete_masks(Board *b)
 {
+    DEBUG_ASSERT(b != NULL);
     for (int i = 0; i < b->side; i++)
     {
         free(b->r_mask[i]);
@@ -29,6 +30,7 @@ void delete_board(Board *b)
 
 void print_board(Board *b)
 {
+    DEBUG_ASSERT(b != NULL);
     for (int i = 0; i < b->side; i++)
     {
         printf("##");
@@ -51,11 +53,13 @@ void print_board(Board *b)
 
 Cell get_cell(Board *b, int row, int col)
 {
+    DEBUG_ASSERT(b != NULL);
     return b->cells[row * b->side + col];
 }
 
 int get_box_idx(Board *b, int row, int col)
 {
+    DEBUG_ASSERT(b != NULL);
     int box_r = row - row % b->base;
     int box_col = col - col % b->base;
     DEBUG_ASSERT(box_r % b->base == 0);
@@ -79,6 +83,7 @@ inline void print_mask(Mask *m, int m_size)
 
 inline int get_first_empty(Board *b)
 {
+    DEBUG_ASSERT(b != NULL);
     for (int i = 0; i < b->empty_mask_size; i++)
     {
         if (~b->empty_mask[i])
@@ -106,10 +111,10 @@ inline void update_mask(Mask *mask, int idx, bool val)
 
 inline void update_cell_masks(Board *b, int row, int col, int val, bool set)
 {
+    DEBUG_ASSERT(b != NULL);
     update_mask(b->r_mask[row], val, set);
     update_mask(b->c_mask[col], val, set);
     update_mask(b->b_mask[get_box_idx(b, row, col)], val, set);
-    DEBUG_PRINT(printf("UPDATED row: %d, col: %d, box: %d\n", row, col, get_box_idx(b, row, col)));
 
     DEBUG_ASSERT(duplicate_in_row(b, row, val) == set);
     DEBUG_ASSERT(duplicate_in_col(b, col, val) == set);
@@ -118,6 +123,7 @@ inline void update_cell_masks(Board *b, int row, int col, int val, bool set)
 
 inline void get_coords(Board *b, int idx, int *row, int *col)
 {
+    DEBUG_ASSERT(b != NULL);
     DEBUG_ASSERT(idx < b->side * b->side);
     *row = idx / b->side;
     *col = idx % b->side;
@@ -129,6 +135,7 @@ inline void get_coords(Board *b, int idx, int *row, int *col)
 
 inline int get_index(Board *b, int x, int y)
 {
+    DEBUG_ASSERT(b != NULL);
     DEBUG_ASSERT(x < b->side);
     DEBUG_ASSERT(y < b->side);
     DEBUG_ASSERT(x >= 0);
@@ -136,54 +143,30 @@ inline int get_index(Board *b, int x, int y)
     return y * b->side + x;
 }
 
-Board* deep_copy_board(const Board* src) {
-    Board* dst = malloc(sizeof(Board));
-    if (!dst) return NULL;
+Board *deep_copy_board(const Board *src)
+{
+    DEBUG_ASSERT(src != NULL);
+    Board *dst = malloc(sizeof(Board));
 
-    // Copy primitive types
     dst->base = src->base;
     dst->side = src->side;
     dst->cell_mask_size = src->cell_mask_size;
     dst->empty_mask_size = src->empty_mask_size;
     dst->num_empty = src->num_empty;
 
-    // Deep copy cells
     dst->cells = malloc(sizeof(Cell) * src->side * src->side);
-    if (!dst->cells) { free(dst); return NULL; }
     memcpy(dst->cells, src->cells, sizeof(Cell) * src->side * src->side);
 
-    // Deep copy masks
-    int mask_count = src->side; // Assuming one mask per row/column/box
-    dst->c_mask = malloc(sizeof(Mask*) * mask_count);
-    dst->r_mask = malloc(sizeof(Mask*) * mask_count);
-    dst->b_mask = malloc(sizeof(Mask*) * mask_count);
-    if (!dst->c_mask || !dst->r_mask || !dst->b_mask) {
-        free(dst->cells);
-        free(dst->c_mask);
-        free(dst->r_mask);
-        free(dst->b_mask);
-        free(dst);
-        return NULL;
-    }
+    int mask_count = src->side;
+    dst->c_mask = malloc(sizeof(Mask *) * mask_count);
+    dst->r_mask = malloc(sizeof(Mask *) * mask_count);
+    dst->b_mask = malloc(sizeof(Mask *) * mask_count);
 
-    for (int i = 0; i < mask_count; i++) {
+    for (int i = 0; i < mask_count; i++)
+    {
         dst->c_mask[i] = malloc(sizeof(Mask));
         dst->r_mask[i] = malloc(sizeof(Mask));
         dst->b_mask[i] = malloc(sizeof(Mask));
-        if (!dst->c_mask[i] || !dst->r_mask[i] || !dst->b_mask[i]) {
-            // Free previously allocated memory on failure
-            for (int j = 0; j <= i; j++) {
-                free(dst->c_mask[j]);
-                free(dst->r_mask[j]);
-                free(dst->b_mask[j]);
-            }
-            free(dst->cells);
-            free(dst->c_mask);
-            free(dst->r_mask);
-            free(dst->b_mask);
-            free(dst);
-            return NULL;
-        }
         memcpy(dst->c_mask[i], src->c_mask[i], sizeof(Mask));
         memcpy(dst->r_mask[i], src->r_mask[i], sizeof(Mask));
         memcpy(dst->b_mask[i], src->b_mask[i], sizeof(Mask));
@@ -191,8 +174,10 @@ Board* deep_copy_board(const Board* src) {
 
     // Deep copy empty_mask
     dst->empty_mask = malloc(sizeof(Mask) * src->empty_mask_size);
-    if (!dst->empty_mask) {
-        for (int i = 0; i < mask_count; i++) {
+    if (!dst->empty_mask)
+    {
+        for (int i = 0; i < mask_count; i++)
+        {
             free(dst->c_mask[i]);
             free(dst->r_mask[i]);
             free(dst->b_mask[i]);
